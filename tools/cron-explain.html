@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cron Explain - Cron expressions to plain English and back</title>
+  <meta name="description" content="Explain 5-field cron expressions in plain English, preview the next run times, and turn common English phrases into cron.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6470; --card: #ffffff; --border: #d8dde3;
+      --accent: #2458d6; --err: #b42318; --field: #fbfcfd; --hl: #eef3ff; --ok: #067647;
+      --warn: #8a5a00; --warn-bg: #fff6e0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4af; --card: #171b21; --border: #2a313a;
+        --accent: #7aa7ff; --err: #ff8f84; --field: #11151a; --hl: #1a2436; --ok: #75e0a7;
+        --warn: #ffd98a; --warn-bg: #2a2212;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 800px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 1.65rem; margin: .75rem 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.1rem; margin: 0 0 .75rem; }
+    h3 { font-size: .9rem; margin: 1rem 0 .4rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    input[type="text"] { width: 100%; font: inherit; padding: .6rem .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--field); color: var(--fg); }
+    input.mono, code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    input.mono { font-size: 1.1rem; letter-spacing: .02em; }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[aria-invalid="true"] { border-color: var(--err); }
+    .hint { color: var(--muted); font-size: .8rem; margin: .3rem 0 0; }
+    .field-error { color: var(--err); font-size: .85rem; margin: .35rem 0 0; }
+    .field-error:empty { display: none; }
+    .examples { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; }
+    .examples button { font-size: .8rem; padding: .2rem .55rem; border-radius: 999px; }
+    .toggle { display: inline-flex; align-items: center; gap: .45rem; font-weight: 400; font-size: .9rem; margin: .75rem 0 0; cursor: pointer; }
+    .toggle input { width: 1rem; height: 1rem; margin: 0; }
+    .sentence { font-size: 1.2rem; font-weight: 650; margin: 0; }
+    .notes { margin: .6rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: .88rem; }
+    .notes li + li { margin-top: .2rem; }
+    .error-box { color: var(--err); margin: 0; }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+    th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    td code { white-space: nowrap; }
+    .table-wrap { overflow-x: auto; }
+    .runs { margin: 0; padding-left: 1.2rem; font-variant-numeric: tabular-nums; }
+    .suggestion { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+    .suggestion code { font-size: 1.35rem; font-weight: 700; padding: .2rem .55rem; border-radius: 8px; background: var(--hl); }
+    .badge { font-size: .75rem; font-weight: 700; padding: .1rem .55rem; border-radius: 999px; }
+    .badge.high { color: var(--ok); background: var(--hl); }
+    .badge.medium, .badge.low { color: var(--warn); background: var(--warn-bg); }
+    .means { margin: .6rem 0 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+    button { font: inherit; padding: .45rem .9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .note { color: var(--muted); font-size: .85rem; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">&larr; All tools</a>
+    <h1>Cron Explain</h1>
+    <p class="lead">Paste a cron expression to read it in plain English, or describe a schedule in English to get a suggested cron line.</p>
+
+    <section class="card" aria-labelledby="explain-heading">
+      <h2 id="explain-heading">Cron &rarr; English</h2>
+      <label for="cron">Cron expression</label>
+      <input id="cron" class="mono" type="text" value="*/15 9-17 * * 1-5" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="cron-hint cron-error">
+      <p class="hint" id="cron-hint">Five fields: minute, hour, day of month, month, day of week. Lists (<code>1,15</code>), ranges (<code>1-5</code>), steps (<code>*/10</code>), names (<code>MON</code>, <code>JAN</code>), and shortcuts like <code>@daily</code> work.</p>
+      <p class="field-error" id="cron-error" aria-live="polite"></p>
+      <ul class="examples" aria-label="Example expressions">
+        <li><button type="button" data-cron="0 9 * * *">0 9 * * *</button></li>
+        <li><button type="button" data-cron="30 8 * * 1">30 8 * * 1</button></li>
+        <li><button type="button" data-cron="*/15 * * * *">*/15 * * * *</button></li>
+        <li><button type="button" data-cron="0 0 1 * *">0 0 1 * *</button></li>
+        <li><button type="button" data-cron="0 */6 * * *">0 */6 * * *</button></li>
+        <li><button type="button" data-cron="0 22 * * 1-5">0 22 * * 1-5</button></li>
+        <li><button type="button" data-cron="0 0 1,15 * 5">0 0 1,15 * 5</button></li>
+      </ul>
+      <label class="toggle"><input type="checkbox" id="clock12"> Show times in 12-hour format (AM/PM)</label>
+
+      <div id="explain-out" aria-live="polite">
+        <h3>Meaning</h3>
+        <p class="sentence" id="sentence">-</p>
+        <ul class="notes" id="explain-notes" hidden></ul>
+        <div id="explain-details">
+          <h3>Fields</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Field</th><th scope="col">Value</th><th scope="col">Matches</th></tr></thead>
+              <tbody id="fields"></tbody>
+            </table>
+          </div>
+          <h3>Next runs <span id="tz" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h3>
+          <ol class="runs" id="runs"></ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="suggest-heading">
+      <h2 id="suggest-heading">English &rarr; Cron</h2>
+      <label for="phrase">Describe a schedule</label>
+      <input id="phrase" type="text" value="every Monday at 8:30" autocomplete="off" spellcheck="false" aria-describedby="phrase-hint phrase-error">
+      <p class="hint" id="phrase-hint">Best effort for common phrases: intervals, times, weekdays, days of the month, and months.</p>
+      <p class="field-error" id="phrase-error" aria-live="polite"></p>
+      <ul class="examples" aria-label="Example phrases">
+        <li><button type="button" data-phrase="every day at 9am">every day at 9am</button></li>
+        <li><button type="button" data-phrase="every Monday at 8:30">every Monday at 8:30</button></li>
+        <li><button type="button" data-phrase="every 15 minutes">every 15 minutes</button></li>
+        <li><button type="button" data-phrase="weekdays at 6pm">weekdays at 6pm</button></li>
+        <li><button type="button" data-phrase="every 2 hours">every 2 hours</button></li>
+        <li><button type="button" data-phrase="on the 1st of every month at midnight">on the 1st of every month at midnight</button></li>
+        <li><button type="button" data-phrase="every 10 minutes between 9am and 5pm on weekdays">every 10 minutes between 9am and 5pm on weekdays</button></li>
+      </ul>
+
+      <div id="suggest-out" aria-live="polite">
+        <h3>Suggestion</h3>
+        <div class="suggestion"><code id="suggested">-</code><span class="badge" id="confidence"></span></div>
+        <p class="means" id="suggest-means"></p>
+        <ul class="notes" id="suggest-notes" hidden></ul>
+        <div class="actions"><button type="button" id="use-suggestion">Explain this expression above</button></div>
+      </div>
+    </section>
+
+    <p class="note">
+      Follows standard 5-field cron (as used by common Unix cron daemons). When both day of month and day of week are
+      restricted, the job runs on days matching <em>either</em> field. Non-standard extensions such as seconds, years,
+      <code>L</code>, <code>W</code>, and <code>#</code> are not supported. Next runs are computed in your browser&rsquo;s time zone.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var $ = function (id) { return document.getElementById(id); };
+
+      var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      var DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
+      var MONTH_ALIASES = { sept: 9 };
+      var DAY_ALIASES = { tues: 2, thur: 4, thurs: 4 };
+      MONTHS.forEach(function (n, i) { MONTH_ALIASES[n.toLowerCase()] = i + 1; MONTH_ALIASES[n.slice(0, 3).toLowerCase()] = i + 1; });
+      DAYS.forEach(function (n, i) { DAY_ALIASES[n.toLowerCase()] = i; DAY_ALIASES[n.slice(0, 3).toLowerCase()] = i; });
+
+      var MACROS = {
+        "@yearly": "0 0 1 1 *", "@annually": "0 0 1 1 *", "@monthly": "0 0 1 * *",
+        "@weekly": "0 0 * * 0", "@daily": "0 0 * * *", "@midnight": "0 0 * * *", "@hourly": "0 * * * *"
+      };
+
+      var SPECS = [
+        { key: "minute", label: "Minute", min: 0, max: 59 },
+        { key: "hour", label: "Hour", min: 0, max: 23 },
+        { key: "dom", label: "Day of month", min: 1, max: 31 },
+        { key: "month", label: "Month", min: 1, max: 12, aliases: MONTH_ALIASES },
+        { key: "dow", label: "Day of week", min: 0, max: 7, aliases: DAY_ALIASES }
+      ];
+
+      function CronError(message) { this.message = message; }
+
+      function has(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
+
+      /* ---------- Parsing ---------- */
+
+      function parseValue(tok, spec) {
+        var lower = tok.toLowerCase();
+        var v;
+        if (/^\d+$/.test(tok)) v = parseInt(tok, 10);
+        else if (spec.aliases && has(spec.aliases, lower)) v = spec.aliases[lower];
+        else if (/^[\dlw#]+$/.test(lower)) throw new CronError('"' + tok + '" uses L, W, or #, which are non-standard extensions and not supported here.');
+        else throw new CronError('"' + tok + '" is not a valid value' + (spec.aliases ? " (use a number or a name such as " + (spec.key === "month" ? "JAN" : "MON") + ")" : "") + ".");
+        if (v < spec.min || v > spec.max) throw new CronError("Value " + v + " is out of range (" + spec.min + "\u2013" + spec.max + ").");
+        return v;
+      }
+
+      function parseField(text, spec) {
+        if (text === "?" && (spec.key === "dom" || spec.key === "dow")) text = "*";
+        var starMax = spec.key === "dow" ? 6 : spec.max;
+        var seen = {};
+        var parts = text.split(",").map(function (item) {
+          if (item === "") throw new CronError("Empty list item (check for extra commas).");
+          var pieces = item.split("/");
+          if (pieces.length > 2) throw new CronError('"' + item + '" has more than one "/".');
+          var base = pieces[0];
+          var hasStep = pieces.length === 2;
+          var step = 1;
+          if (hasStep) {
+            if (!/^\d+$/.test(pieces[1])) throw new CronError('Step "/' + pieces[1] + '" must be a whole number.');
+            step = parseInt(pieces[1], 10);
+            if (step < 1) throw new CronError("Step must be at least 1.");
+          }
+          var from, to, kind;
+          if (base === "") {
+            throw new CronError('"' + item + '" is missing a value before "/".');
+          } else if (base === "*") {
+            from = spec.min; to = starMax; kind = hasStep ? "star-step" : "star";
+          } else if (base.indexOf("-") !== -1) {
+            var ab = base.split("-");
+            if (ab.length !== 2 || ab[0] === "" || ab[1] === "") throw new CronError('"' + base + '" is not a valid range (negative numbers are not allowed).');
+            from = parseValue(ab[0], spec);
+            to = parseValue(ab[1], spec);
+            if (from > to) throw new CronError('Range "' + base + '" goes backwards; write it from low to high.');
+            kind = "range";
+          } else {
+            from = parseValue(base, spec);
+            if (hasStep) { to = starMax; kind = "start-step"; } else { to = from; kind = "value"; }
+          }
+          for (var v = from; v <= to; v += step) seen[spec.key === "dow" && v === 7 ? 0 : v] = true;
+          return { kind: kind, from: from, to: to, step: step };
+        });
+        var values = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; });
+        var size = spec.key === "dow" ? 7 : spec.max - spec.min + 1;
+        return { raw: text, star: text.charAt(0) === "*", parts: parts, values: values, full: values.length === size };
+      }
+
+      function parseCron(input) {
+        var expr = input.trim().replace(/\s+/g, " ");
+        if (!expr) throw new CronError("Enter a cron expression, for example */15 * * * *.");
+        var macro = null;
+        if (expr.charAt(0) === "@") {
+          var key = expr.toLowerCase();
+          if (key === "@reboot") return { reboot: true, macro: key };
+          if (!has(MACROS, key)) throw new CronError('Unknown shortcut "' + expr + '". Supported: ' + Object.keys(MACROS).join(", ") + ", @reboot.");
+          macro = key;
+          expr = MACROS[key];
+        }
+        var tokens = expr.split(" ");
+        if (tokens.length !== 5) {
+          var msg = "Expected 5 fields (minute hour day-of-month month day-of-week) but found " + tokens.length + ".";
+          if (tokens.length === 6 || tokens.length === 7) msg += " Formats with a seconds or year field are not supported; remove the extra field.";
+          throw new CronError(msg);
+        }
+        var fields = {};
+        SPECS.forEach(function (spec, i) {
+          try {
+            fields[spec.key] = parseField(tokens[i], spec);
+          } catch (e) {
+            if (e instanceof CronError) throw new CronError("Field " + (i + 1) + " (" + spec.label.toLowerCase() + ', "' + tokens[i] + '"): ' + e.message);
+            throw e;
+          }
+        });
+        return { fields: fields, macro: macro, expr: expr };
+      }
+
+      /* ---------- Describing ---------- */
+
+      function use12h() { return $("clock12").checked; }
+      function pad(n) { return (n < 10 ? "0" : "") + n; }
+      function fmtTime(h, m) {
+        if (!use12h()) return pad(h) + ":" + pad(m);
+        return ((h % 12) || 12) + ":" + pad(m) + " " + (h < 12 ? "AM" : "PM");
+      }
+      function hourLabel(h) { return use12h() ? ((h % 12) || 12) + " " + (h < 12 ? "AM" : "PM") : String(h); }
+      function ordinal(n) {
+        var s = ["th", "st", "nd", "rd"], v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      }
+      function joinList(items, conj) {
+        if (items.length <= 1) return items.join("");
+        return items.slice(0, -1).join(", ") + " " + (conj || "and") + " " + items[items.length - 1];
+      }
+      function compressRuns(values, label) {
+        var out = [];
+        for (var i = 0; i < values.length;) {
+          var j = i;
+          while (j + 1 < values.length && values[j + 1] === values[j] + 1) j++;
+          if (j - i >= 2) out.push(label(values[i]) + "\u2013" + label(values[j]));
+          else for (var k = i; k <= j; k++) out.push(label(values[k]));
+          i = j + 1;
+        }
+        return out;
+      }
+      function allValues(f) { return f.parts.every(function (p) { return p.kind === "value"; }); }
+      function singleStep(f) {
+        return f.parts.length === 1 && f.parts[0].kind === "star-step" && f.values.length > 1 ? f.parts[0].step : 0;
+      }
+      function singleRange(f) {
+        return f.parts.length === 1 && f.parts[0].kind === "range" && f.parts[0].step === 1 ? f.parts[0] : null;
+      }
+      function first(f) { return f.values[0]; }
+      function last(f) { return f.values[f.values.length - 1]; }
+      function dowOrdered(values) { return DOW_ORDER.filter(function (d) { return values.indexOf(d) !== -1; }); }
+
+      function minutePhrase(f) {
+        if (f.full) return "every minute";
+        var s = singleStep(f);
+        if (s) return "every " + s + " minutes";
+        if (f.values.length === 1) return "at minute " + f.values[0];
+        if (f.parts.length === 1 && f.parts[0].kind !== "value") {
+          var p = f.parts[0];
+          return (p.step > 1 ? "every " + p.step + " minutes" : "every minute") + " from minute " + first(f) + " through " + last(f);
+        }
+        return "at minutes " + joinList(compressRuns(f.values, String));
+      }
+
+      function hourPhrase(f) {
+        var p = f.parts[0];
+        if (f.parts.length === 1 && p.step > 1 && f.values.length > 1) {
+          return "every " + ordinal(p.step) + " hour from " + hourLabel(first(f)) + " through " + hourLabel(last(f));
+        }
+        return (f.values.length === 1 ? "hour " : "hours ") + joinList(compressRuns(f.values, hourLabel));
+      }
+
+      function describeTime(min, hour) {
+        var mp = minutePhrase(min);
+        var mRepeat = min.full || singleStep(min) > 0;
+        var oneMinute = min.values.length === 1;
+
+        if (hour.full) {
+          if (mRepeat) return { text: mp, recurring: true };
+          if (oneMinute) return { text: first(min) === 0 ? "every hour, on the hour" : "every hour at minute " + first(min), recurring: true };
+          return { text: mp + " past every hour", recurring: true };
+        }
+
+        var hs = singleStep(hour);
+        if (hs) {
+          if (oneMinute) {
+            var text = "every " + hs + " hours" + (first(min) === 0 ? ", on the hour" : " at minute " + first(min));
+            if (hour.values.length <= 6) text += " (" + joinList(hour.values.map(function (h) { return fmtTime(h, first(min)); })) + ")";
+            return { text: text, recurring: true };
+          }
+          return { text: mp + (mRepeat ? ", during every " : " past every ") + ordinal(hs) + " hour", recurring: true };
+        }
+
+        if (allValues(min) && hour.values.length * min.values.length <= 8 && (allValues(hour) || hour.values.length === 1)) {
+          var times = [];
+          hour.values.forEach(function (h) { min.values.forEach(function (m) { times.push(fmtTime(h, m)); }); });
+          return { text: "at " + joinList(times), recurring: false };
+        }
+
+        var range = singleRange(hour) || (hour.values.length === 1 ? { from: first(hour), to: first(hour) } : null);
+        if (range) {
+          if (mRepeat) return { text: mp + " from " + fmtTime(range.from, first(min)) + " through " + fmtTime(range.to, last(min)), recurring: false };
+          if (oneMinute) return { text: "every hour from " + fmtTime(range.from, first(min)) + " through " + fmtTime(range.to, first(min)), recurring: false };
+        }
+        return { text: mp + " past " + hourPhrase(hour), recurring: false };
+      }
+
+      function domPhrase(f) {
+        if (f.values.length === 1) return "on day " + first(f) + " of the month";
+        var s = singleStep(f);
+        if (s) return "on every " + ordinal(s) + " day of the month (" + f.values.slice(0, 3).join(", ") + ", \u2026)";
+        var r = singleRange(f);
+        if (r) return "on days " + r.from + " through " + r.to + " of the month";
+        return "on days " + joinList(compressRuns(f.values, String)) + " of the month";
+      }
+
+      function dowPhrase(f) {
+        var key = f.values.join(",");
+        if (key === "1,2,3,4,5") return "on weekdays (Monday through Friday)";
+        if (key === "0,6") return "on weekends (Saturday and Sunday)";
+        var ordered = dowOrdered(f.values);
+        var idx = ordered.map(function (d) { return DOW_ORDER.indexOf(d); });
+        var contiguous = idx.every(function (x, i) { return i === 0 || x === idx[i - 1] + 1; });
+        if (ordered.length >= 3 && contiguous) return "on " + DAYS[ordered[0]] + " through " + DAYS[ordered[ordered.length - 1]];
+        return "on " + joinList(ordered.map(function (d) { return DAYS[d] + "s"; }));
+      }
+
+      function monthPhrase(f) {
+        if (f.values.length === 1) return "in " + MONTHS[first(f) - 1];
+        var r = singleRange(f);
+        if (r) return "from " + MONTHS[r.from - 1] + " through " + MONTHS[r.to - 1];
+        return "in " + joinList(f.values.map(function (m) { return MONTHS[m - 1]; }));
+      }
+
+      // Standard cron rule: if either day field starts with "*", both must match; otherwise either may match.
+      function describeDays(f, notes) {
+        var dom = f.dom, dow = f.dow;
+        var orMode = !dom.star && !dow.star;
+        if (orMode) {
+          if (dom.full || dow.full) {
+            if (!dom.full || !dow.full) {
+              notes.push((dom.full ? "Day of month" : "Day of week") + ' "' + (dom.full ? dom.raw : dow.raw) +
+                '" matches every day, so under the standard either-field rule the other day field has no effect.');
+            }
+            return { text: null, kind: null };
+          }
+          notes.push("Both day of month and day of week are restricted, so cron runs on days that match either one (not both).");
+          return { text: domPhrase(dom) + " or " + dowPhrase(dow), kind: "or" };
+        }
+        if (!dom.full && !dow.full) {
+          notes.push("Because one day field starts with \"*\", cron requires both day fields to match.");
+          return { text: domPhrase(dom) + ", but only if that day is a " + joinList(dowOrdered(dow.values).map(function (d) { return DAYS[d]; }), "or"), kind: "and" };
+        }
+        if (!dom.full) return { text: domPhrase(dom), kind: "dom" };
+        if (!dow.full) return { text: dowPhrase(dow), kind: "dow" };
+        return { text: null, kind: null };
+      }
+
+      function describe(parsed) {
+        if (parsed.reboot) return { sentence: "Once, when the cron daemon starts (usually at system boot).", notes: [] };
+        var f = parsed.fields;
+        var notes = [];
+        if (parsed.macro) notes.push("Shortcut " + parsed.macro + " is the same as " + parsed.expr + ".");
+
+        var time = describeTime(f.minute, f.hour);
+        var days = describeDays(f, notes);
+        var monthLimited = !f.month.full;
+        var segs = [time.text];
+
+        if (monthLimited && days.kind === "dom" && f.month.values.length === 1 && allValues(f.dom) && f.dom.values.length <= 4) {
+          segs.push("on " + MONTHS[first(f.month) - 1] + " " + joinList(f.dom.values.map(String)));
+        } else {
+          if (days.text) segs.push(days.text);
+          else if (!time.recurring) segs.push(monthLimited ? "every day " + monthPhrase(f.month) : "every day");
+          if (monthLimited && (days.text || time.recurring)) segs.push(monthPhrase(f.month));
+        }
+
+        var ms = singleStep(f.minute);
+        if (ms && 60 % ms !== 0) notes.push("Minute step /" + ms + " restarts at minute 0 every hour, so the last gap before the hour is " + (60 - last(f.minute)) + " minutes, not " + ms + ".");
+        var hs = singleStep(f.hour);
+        if (hs && 24 % hs !== 0) notes.push("Hour step /" + hs + " restarts at midnight, so the last gap of the day is " + (24 - last(f.hour)) + " hours, not " + hs + ".");
+        if (singleStep(f.dom)) notes.push("Day-of-month steps restart on the 1st of every month.");
+        if (days.kind === "dom" || days.kind === "and") {
+          var minDay = first(f.dom);
+          if (minDay > 28) notes.push("Months with fewer than " + minDay + " days are skipped" + (minDay === 29 ? " (February runs only in leap years)" : "") + ".");
+        }
+
+        var sentence = segs.join(", ");
+        return { sentence: sentence.charAt(0).toUpperCase() + sentence.slice(1) + ".", notes: notes };
+      }
+
+      function matchesText(f, spec) {
+        if (f.full) return "any";
+        if (spec.key === "month") return compressRuns(f.values, function (m) { return MONTHS[m - 1]; }).join(", ");
+        if (spec.key === "dow") return compressRuns(f.values, function (d) { return DAYS[d]; }).join(", ");
+        return compressRuns(f.values, String).join(", ");
+      }
+
+      function nextRuns(f, count) {
+        var lookup = {};
+        ["dom", "month", "dow"].forEach(function (k) {
+          lookup[k] = {};
+          f[k].values.forEach(function (v) { lookup[k][v] = true; });
+        });
+        var orMode = !f.dom.star && !f.dow.star;
+        var now = new Date();
+        var start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes() + 1, 0, 0);
+        var day = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        var out = [];
+        for (var i = 0; i < 3660 && out.length < count; i++) {
+          var d = day.getDate();
+          if (lookup.month[day.getMonth() + 1]) {
+            var domOk = !!lookup.dom[d], dowOk = !!lookup.dow[day.getDay()];
+            if (orMode ? (domOk || dowOk) : (domOk && dowOk)) {
+              for (var hi = 0; hi < f.hour.values.length && out.length < count; hi++) {
+                for (var mi = 0; mi < f.minute.values.length && out.length < count; mi++) {
+                  var h = f.hour.values[hi], m = f.minute.values[mi];
+                  var t = new Date(day.getFullYear(), day.getMonth(), d, h, m, 0, 0);
+                  if (t.getHours() !== h || t.getMinutes() !== m || t < start) continue;
+                  out.push(t);
+                }
+              }
+            }
+          }
+          day = new Date(day.getFullYear(), day.getMonth(), d + 1);
+        }
+        return out;
+      }
+
+      /* ---------- Cron -> English UI ---------- */
+
+      function renderNotes(el, notes) {
+        el.textContent = "";
+        notes.forEach(function (n) {
+          var li = document.createElement("li");
+          li.textContent = n;
+          el.appendChild(li);
+        });
+        el.hidden = notes.length === 0;
+      }
+
+      function explain() {
+        var input = $("cron");
+        var parsed;
+        try {
+          parsed = parseCron(input.value);
+        } catch (e) {
+          var msg = e instanceof CronError ? e.message : "Could not read this expression.";
+          input.setAttribute("aria-invalid", "true");
+          $("cron-error").textContent = msg;
+          $("sentence").textContent = "Cannot explain this expression yet. Fix the problem shown above.";
+          $("sentence").className = "sentence error-box";
+          renderNotes($("explain-notes"), []);
+          $("explain-details").hidden = true;
+          return;
+        }
+        input.setAttribute("aria-invalid", "false");
+        $("cron-error").textContent = "";
+        $("sentence").className = "sentence";
+
+        var d = describe(parsed);
+        $("sentence").textContent = d.sentence;
+
+        if (parsed.reboot) {
+          renderNotes($("explain-notes"), ["@reboot has no calendar schedule, so there are no next run times."]);
+          $("explain-details").hidden = true;
+          return;
+        }
+
+        var tbody = $("fields");
+        tbody.textContent = "";
+        SPECS.forEach(function (spec) {
+          var f = parsed.fields[spec.key];
+          var tr = document.createElement("tr");
+          var th = document.createElement("th");
+          th.scope = "row";
+          th.textContent = spec.label;
+          var tdRaw = document.createElement("td");
+          var code = document.createElement("code");
+          code.textContent = f.raw;
+          tdRaw.appendChild(code);
+          var tdMatch = document.createElement("td");
+          tdMatch.textContent = matchesText(f, spec);
+          tr.appendChild(th); tr.appendChild(tdRaw); tr.appendChild(tdMatch);
+          tbody.appendChild(tr);
+        });
+
+        var runs = nextRuns(parsed.fields, 5);
+        var list = $("runs");
+        list.textContent = "";
+        var fmt = new Intl.DateTimeFormat("en-US", {
+          weekday: "short", year: "numeric", month: "short", day: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: use12h()
+        });
+        runs.forEach(function (t) {
+          var li = document.createElement("li");
+          li.textContent = fmt.format(t);
+          list.appendChild(li);
+        });
+        if (!runs.length) d.notes.push("No matching date in the next 10 years. Check the day and month fields (for example, February 30 never happens).");
+        else if (runs.length < 5) d.notes.push("Only " + runs.length + " run(s) found in the next 10 years.");
+        renderNotes($("explain-notes"), d.notes);
+
+        var tz = "";
+        try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { tz = ""; }
+        $("tz").textContent = "(" + (tz || "local time") + ")";
+        $("explain-details").hidden = false;
+      }
+
+      /* ---------- English -> Cron ---------- */
+
+      var MONTH_RE = "january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec";
+      var DAY_RE = "monday|tuesday|wednesday|thursday|friday|saturday|sunday|tues|tue|wed|thurs|thur|thu|mon|fri|sat|sun";
+      var NUM_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20, thirty: 30, other: 2 };
+      var NUM_RE = "\\d+|" + Object.keys(NUM_WORDS).join("|");
+      var TIME_RE = "(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?";
+      var FILLER = ("every each at on in the of and or a an to from run runs running job task it please schedule scheduled " +
+        "me day days month months week weeks year years hour hours minute minutes time times per starting start only once do " +
+        "this script backup cron should be execute executed trigger triggered all s").split(" ");
+
+      function toField(values) {
+        var sorted = values.slice().sort(function (a, b) { return a - b; }).filter(function (v, i, arr) { return i === 0 || v !== arr[i - 1]; });
+        return compressRuns(sorted, String).join(",").replace(/\u2013/g, "-");
+      }
+
+      function toHM(hStr, mStr, ampm) {
+        var h = parseInt(hStr, 10), m = mStr ? parseInt(mStr, 10) : 0;
+        if (ampm) {
+          if (h < 1 || h > 12) return null;
+          h = ampm === "am" ? h % 12 : (h % 12) + 12;
+        }
+        if (h > 23 || m > 59) return null;
+        return { h: h, m: m, explicit: !!ampm };
+      }
+
+      function suggestCron(text) {
+        var notes = [];
+        var approx = false;
+        var s = " " + text.toLowerCase()
+          .replace(/\b([ap])\.\s?m\b\.?/g, "$1m")
+          .replace(/o['\u2019]?\s?clock/g, " ")
+          .replace(/\beach\b/g, "every")
+          .replace(/\b(noon|midday)\b/g, " 12:00 ")
+          .replace(/\bmidnight\b/g, " 0:00 ")
+          .replace(/[^a-z0-9: -]+/g, " ")
+          .replace(/\s+/g, " ") + " ";
+        var recognized = false;
+
+        function take(re) {
+          var m = re.exec(s);
+          if (m) {
+            s = s.slice(0, m.index) + " " + s.slice(m.index + m[0].length);
+            recognized = true;
+          }
+          return m;
+        }
+        function num(word) { return has(NUM_WORDS, word) ? NUM_WORDS[word] : parseInt(word, 10); }
+
+        var pmHint = take(/\b(?:in the |at )?(evening|afternoon|night|tonight)\b/);
+        take(/\b(?:in the )?morning\b/);
+
+        var doms = [], months = [], dows = [], times = [];
+        var minuteOnly = null, hourRange = null, interval = null, m;
+
+        if (take(/\blast day of (?:the |every |each )?month\b/)) {
+          doms.push(28, 29, 30, 31);
+          approx = true;
+          notes.push("Standard cron has no \"last day of the month\". The suggestion runs on days 28\u201331; make the job exit unless tomorrow is the 1st.");
+        }
+
+        var nthDay = take(new RegExp("\\b(first|second|third|fourth|last|1st|2nd|3rd|4th)\\s+(" + DAY_RE + ")\\b"));
+        if (nthDay) {
+          dows.push(DAY_ALIASES[nthDay[2]]);
+          approx = true;
+          notes.push("Cron cannot express \"" + nthDay[1] + " " + nthDay[2] + " of the month\". The suggestion runs every " + DAYS[DAY_ALIASES[nthDay[2]]] + "; add a date check inside the job to skip the others.");
+        }
+
+        var monthDay = new RegExp("\\b(" + MONTH_RE + ")\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b");
+        var dayMonth = new RegExp("\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(" + MONTH_RE + ")\\b");
+        while ((m = take(monthDay))) { months.push(MONTH_ALIASES[m[1]]); doms.push(parseInt(m[2], 10)); }
+        while ((m = take(dayMonth))) { doms.push(parseInt(m[1], 10)); months.push(MONTH_ALIASES[m[2]]); }
+
+        while ((m = take(/\b(\d{1,2})(?:st|nd|rd|th)\b/))) doms.push(parseInt(m[1], 10));
+        while ((m = take(/\bday\s+(\d{1,2})\b(?!\s*(?:am|pm|:))/))) doms.push(parseInt(m[1], 10));
+        if (take(/\bfirst day\b/)) doms.push(1);
+
+        var between = take(new RegExp("\\b(?:between|from)\\s+" + TIME_RE + "\\s+(?:and|to|until|till|through|-)\\s+" + TIME_RE + "(?![a-z0-9])"));
+        if (between) {
+          var a = toHM(between[1], between[2], between[3]);
+          var b = toHM(between[4], between[5], between[6]);
+          if (a && b && !b.explicit && b.h < a.h && b.h + 12 <= 23) b.h += 12;
+          if (a && b && b.h >= a.h) hourRange = { from: a, to: b };
+          else { approx = true; notes.push("Could not read the time range; it was ignored."); }
+        }
+
+        m = take(/\bevery\s+(?:(\d+)\s+)?sec(?:ond)?s?\b/);
+        if (m) {
+          interval = { n: 1, unit: "minute" };
+          approx = true;
+          notes.push("Cron cannot run more often than once per minute. The suggestion runs every minute.");
+        }
+        if (!interval && take(/\bevery half(?: an)? hour\b/)) interval = { n: 30, unit: "minute" };
+        if (!interval && take(/\bevery quarter(?: of an)? hour\b/)) interval = { n: 15, unit: "minute" };
+        if (!interval) {
+          m = take(new RegExp("\\bevery\\s+(?:(" + NUM_RE + ")\\s+)?(minute|min|hour|hr|day|week|month|year)s?\\b"));
+          if (m) interval = { n: m[1] ? num(m[1]) : 1, unit: m[2] === "min" ? "minute" : m[2] === "hr" ? "hour" : m[2] };
+        }
+        if (!interval) {
+          m = take(/\b(hourly|daily|nightly|weekly|monthly|yearly|annually)\b/);
+          if (m) interval = { n: 1, unit: { hourly: "hour", daily: "day", nightly: "day", weekly: "week", monthly: "month", yearly: "year", annually: "year" }[m[1]] };
+        }
+
+        if (take(/\b(?:week ?days?|business days?|work ?days?|working days?)\b/)) dows.push(1, 2, 3, 4, 5);
+        if (take(/\bweek ?ends?\b/)) dows.push(0, 6);
+        var dayRange = new RegExp("\\b(" + DAY_RE + ")s?\\s*(?:-|to|through|thru|until)\\s*(" + DAY_RE + ")s?\\b");
+        while ((m = take(dayRange))) {
+          var d0 = DAY_ALIASES[m[1]], d1 = DAY_ALIASES[m[2]];
+          for (var k = 0, dd = d0; k < 7; k++, dd = (dd + 1) % 7) { dows.push(dd); if (dd === d1) break; }
+        }
+        var dayName = new RegExp("\\b(" + DAY_RE + ")s?\\b");
+        while ((m = take(dayName))) dows.push(DAY_ALIASES[m[1]]);
+
+        var monthRange = new RegExp("\\b(" + MONTH_RE + ")\\s*(?:-|to|through|thru|until)\\s*(" + MONTH_RE + ")\\b");
+        while ((m = take(monthRange))) {
+          var m0 = MONTH_ALIASES[m[1]], m1 = MONTH_ALIASES[m[2]];
+          for (var j = 0, mm = m0; j < 12; j++, mm = mm % 12 + 1) { months.push(mm); if (mm === m1) break; }
+        }
+        var monthName = new RegExp("\\b(" + MONTH_RE + ")\\b");
+        while ((m = take(monthName))) months.push(MONTH_ALIASES[m[1]]);
+
+        m = take(/\bat\s+(?:minute\s+(\d{1,2})|:(\d{2}))\b/) || take(/\b(\d{1,2})\s+(?:minutes?|mins?)\s+past(?: the| every)? hour\b/);
+        if (m) {
+          var mo = parseInt(m[1] || m[2], 10);
+          if (mo <= 59) minuteOnly = mo; else { approx = true; notes.push("Minute " + mo + " is out of range and was ignored."); }
+        }
+
+        var timeRes = [
+          /\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?![a-z])/,
+          /\b(?:at\s+)?(\d{1,2}):(\d{2})\b()/,
+          /\bat\s+(\d{1,2})\b()()(?!\s*(?:minutes?|mins?))/
+        ];
+        timeRes.forEach(function (re) {
+          var mt;
+          while ((mt = take(re))) {
+            var t = toHM(mt[1], mt[2], mt[3]);
+            if (!t) { approx = true; notes.push("Ignored an invalid time (\"" + mt[0].trim() + "\")."); continue; }
+            if (pmHint && !t.explicit && t.h < 12) t.h += 12;
+            times.push(t);
+          }
+        });
+
+        var leftovers = s.split(" ").filter(function (w) { return w && FILLER.indexOf(w) === -1; });
+
+        if (!recognized) {
+          return {
+            cron: "0 0 * * *", confidence: "low",
+            notes: ["Could not recognize a schedule in that phrase. Closest generic suggestion: every day at midnight. Try phrases such as \"every day at 9am\", \"every Monday at 8:30\", or \"every 15 minutes\"."]
+          };
+        }
+
+        var invalidDoms = doms.filter(function (d) { return d < 1 || d > 31; });
+        if (invalidDoms.length) { approx = true; notes.push("Ignored invalid day of month: " + invalidDoms.join(", ") + "."); }
+        doms = doms.filter(function (d) { return d >= 1 && d <= 31; });
+
+        if (interval && !(interval.n >= 1)) {
+          approx = true;
+          notes.push("The interval must be at least 1; using 1 instead.");
+          interval.n = 1;
+        }
+        if (interval && interval.unit === "minute" && interval.n >= 60) {
+          if (interval.n % 60 === 0) interval = { n: interval.n / 60, unit: "hour" };
+          else {
+            approx = true;
+            notes.push("Cron cannot repeat every " + interval.n + " minutes evenly across hours; the suggestion rounds to every " + Math.max(1, Math.round(interval.n / 60)) + " hour(s).");
+            interval = { n: Math.max(1, Math.round(interval.n / 60)), unit: "hour" };
+          }
+        }
+        if (interval && interval.unit === "hour" && interval.n >= 24) {
+          if (interval.n % 24 === 0) interval = { n: interval.n / 24, unit: "day" };
+          else {
+            approx = true;
+            notes.push("Cron cannot repeat every " + interval.n + " hours across days; the suggestion runs daily instead.");
+            interval = { n: 1, unit: "day" };
+          }
+        }
+
+        var minute, hour, dom = doms.length ? toField(doms) : "*", month = months.length ? toField(months) : "*", dow = dows.length ? toField(dows) : "*";
+        var unit = interval ? interval.unit : null;
+        var n = interval ? interval.n : 1;
+        var sameMinute = times.every(function (t) { return t.m === times[0].m; });
+        var hoursOfTimes = toField(times.map(function (t) { return t.h; }));
+        var rangeField = hourRange ? hourRange.from.h + "-" + hourRange.to.h : null;
+
+        if (times.length > 1 && !sameMinute) {
+          approx = true;
+          var extra = times.slice(1).map(function (t) { return [t.m, t.h, dom, month, dow].join(" "); });
+          notes.push("Cron uses one minute value per line. The suggestion covers " + fmtTime(times[0].h, times[0].m) + "; add a separate line for each other time: " + extra.join("; ") + ".");
+          times = [times[0]];
+          hoursOfTimes = String(times[0].h);
+        }
+
+        if (unit === "minute") {
+          minute = n === 1 ? "*" : "*/" + n;
+          if (60 % n !== 0) { approx = true; notes.push("*/" + n + " restarts at minute 0 every hour, so one gap per hour is shorter than " + n + " minutes."); }
+          if (hourRange) {
+            var endH = hourRange.to.m === 0 ? hourRange.to.h - 1 : hourRange.to.h;
+            if (endH < hourRange.from.h) endH = hourRange.from.h;
+            hour = hourRange.from.h === endH ? String(endH) : hourRange.from.h + "-" + endH;
+            notes.push("The last run each day is at " + fmtTime(endH, 59 - (59 % n)) + (hourRange.to.m === 0 ? ", just before " + fmtTime(hourRange.to.h, 0) + "." : "."));
+          } else if (times.length) {
+            hour = hoursOfTimes;
+            notes.push("Runs every " + (n === 1 ? "minute" : n + " minutes") + " during the given hour(s) only.");
+          } else hour = "*";
+        } else if (unit === "hour") {
+          minute = String(minuteOnly !== null ? minuteOnly : times.length ? times[0].m : 0);
+          var stepPart = n === 1 ? "" : "/" + n;
+          hour = rangeField ? rangeField + stepPart : "*" + stepPart;
+          if (24 % n !== 0 && !rangeField) { approx = true; notes.push("*/" + n + " restarts at midnight, so the last gap of the day is shorter than " + n + " hours."); }
+        } else {
+          if (times.length) {
+            minute = String(times[0].m);
+            hour = hoursOfTimes;
+          } else if (hourRange) {
+            minute = String(minuteOnly !== null ? minuteOnly : 0);
+            hour = rangeField;
+            approx = true;
+            notes.push("No interval given; assuming once per hour within the time range.");
+          } else {
+            minute = String(minuteOnly !== null ? minuteOnly : 0);
+            hour = "0";
+            approx = true;
+            notes.push("No time given; using midnight (" + fmtTime(0, minuteOnly !== null ? minuteOnly : 0) + ").");
+          }
+          if (unit === "day" && n > 1) {
+            if (!doms.length) dom = "*/" + n;
+            approx = true;
+            notes.push("*/" + n + " in the day-of-month field restarts on the 1st of every month, so gaps at month end are uneven.");
+          } else if (unit === "week") {
+            if (!dows.length) { dow = "0"; approx = true; notes.push("No weekday given; using Sunday."); }
+            if (n > 1) { approx = true; notes.push("Cron cannot repeat every " + n + " weeks. The suggestion runs weekly; skip alternate weeks inside the job."); }
+          } else if (unit === "month") {
+            if (!doms.length) { dom = "1"; approx = true; notes.push("No day given; using the 1st of the month."); }
+            if (n > 1) {
+              month = "*/" + n;
+              if (12 % n !== 0) { approx = true; notes.push("*/" + n + " in the month field restarts in January, so gaps are uneven."); }
+            }
+          } else if (unit === "year") {
+            if (!doms.length) { dom = "1"; approx = true; notes.push("No day given; using the 1st."); }
+            if (!months.length) { month = "1"; approx = true; notes.push("No month given; using January."); }
+            if (n > 1) { approx = true; notes.push("Cron cannot repeat every " + n + " years. The suggestion runs yearly."); }
+          }
+        }
+
+        var cron = [minute, hour, dom, month, dow].join(" ");
+        if (dom !== "*" && dow !== "*") notes.push("Both a day of month and a day of week are set; standard cron runs when either matches.");
+
+        var confidence = leftovers.length ? "low" : approx ? "medium" : "high";
+        if (leftovers.length) notes.unshift("Not sure about: \"" + leftovers.join(" ") + "\". The suggestion ignores those words.");
+        return { cron: cron, confidence: confidence, notes: notes };
+      }
+
+      var CONFIDENCE_TEXT = { high: "Confident match", medium: "Best guess \u2013 check the notes", low: "Not sure \u2013 closest suggestion" };
+
+      function suggest() {
+        var input = $("phrase");
+        var text = input.value.trim();
+        var out = $("suggest-out");
+        if (!text) {
+          input.setAttribute("aria-invalid", "true");
+          $("phrase-error").textContent = "Type a schedule, for example \"every day at 9am\".";
+          out.hidden = true;
+          return;
+        }
+        input.setAttribute("aria-invalid", "false");
+        $("phrase-error").textContent = "";
+        out.hidden = false;
+
+        var result;
+        try {
+          result = suggestCron(text);
+          result.meaning = describe(parseCron(result.cron)).sentence;
+        } catch (e) {
+          result = { cron: "0 0 * * *", confidence: "low", notes: ["Something in that phrase could not be handled. Closest generic suggestion: every day at midnight."] };
+          result.meaning = describe(parseCron(result.cron)).sentence;
+        }
+
+        $("suggested").textContent = result.cron;
+        var badge = $("confidence");
+        badge.textContent = CONFIDENCE_TEXT[result.confidence];
+        badge.className = "badge " + result.confidence;
+        $("suggest-means").textContent = "Means: " + result.meaning;
+        renderNotes($("suggest-notes"), result.notes);
+      }
+
+      /* ---------- Wiring ---------- */
+
+      $("cron").addEventListener("input", explain);
+      $("phrase").addEventListener("input", suggest);
+      $("clock12").addEventListener("change", function () { explain(); suggest(); });
+      Array.prototype.forEach.call(document.querySelectorAll("[data-cron]"), function (btn) {
+        btn.addEventListener("click", function () { $("cron").value = btn.getAttribute("data-cron"); explain(); });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("[data-phrase]"), function (btn) {
+        btn.addEventListener("click", function () { $("phrase").value = btn.getAttribute("data-phrase"); suggest(); });
+      });
+      $("use-suggestion").addEventListener("click", function () {
+        $("cron").value = $("suggested").textContent;
+        explain();
+        $("cron").focus();
+        $("cron").scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+
+      explain();
+      suggest();
+    })();
+  </script>
+</body>
+</html>
