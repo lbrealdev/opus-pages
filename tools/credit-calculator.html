@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Credit Calculator - Installment loan cost</title>
+  <meta name="description" content="Estimate the monthly payment, total paid, total interest, and fee impact of an installment loan.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6470; --card: #ffffff; --border: #d8dde3;
+      --accent: #2458d6; --err: #b42318; --field: #fbfcfd; --hl: #eef3ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4af; --card: #171b21; --border: #2a313a;
+        --accent: #7aa7ff; --err: #ff8f84; --field: #11151a; --hl: #1a2436;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 760px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 1.65rem; margin: .75rem 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.05rem; margin: 0 0 .75rem; }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    .grid { display: grid; gap: .9rem 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+    label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    input, select { width: 100%; font: inherit; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--field); color: var(--fg); }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[aria-invalid="true"] { border-color: var(--err); }
+    .hint { color: var(--muted); font-size: .8rem; margin: .25rem 0 0; }
+    .field-error { color: var(--err); font-size: .82rem; margin: .25rem 0 0; }
+    .field-error:empty { display: none; }
+    .results dl { margin: 0; }
+    .results dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .3rem 0; }
+    .results dt { color: var(--muted); }
+    .results dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .results .big dt, .results .big dd { font-size: 1.2rem; color: var(--fg); }
+    .results .sep { border-top: 1px solid var(--border); margin-top: .4rem; padding-top: .7rem; }
+    .summary-error { color: var(--err); margin: 0; }
+    .note { color: var(--muted); font-size: .85rem; }
+    .note code { font-size: .85rem; }
+    .actions { display: flex; justify-content: flex-end; margin-top: .9rem; }
+    button { font: inherit; padding: .45rem .9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    details summary { cursor: pointer; font-weight: 600; }
+    .table-wrap { overflow-x: auto; margin-top: .75rem; max-height: 420px; overflow-y: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+    th, td { padding: .35rem .5rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { position: sticky; top: 0; background: var(--card); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">&larr; All tools</a>
+    <h1>Credit Calculator</h1>
+    <p class="lead">Estimate the monthly payment and full cost of an installment loan, including optional fees.</p>
+
+    <section class="card" aria-labelledby="loan-heading">
+      <h2 id="loan-heading">Loan</h2>
+      <div class="grid">
+        <div>
+          <label for="principal">Principal (amount borrowed)</label>
+          <input id="principal" type="number" inputmode="decimal" step="any" min="0" value="10000" aria-describedby="principal-error">
+          <p class="field-error" id="principal-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="rate">Annual interest rate (%)</label>
+          <input id="rate" type="number" inputmode="decimal" step="any" min="0" max="100" value="12" aria-describedby="rate-hint rate-error">
+          <p class="hint" id="rate-hint">Nominal yearly rate, 0 to 100.</p>
+          <p class="field-error" id="rate-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="term">Term (months)</label>
+          <input id="term" type="number" inputmode="numeric" step="1" min="1" max="600" value="24" aria-describedby="term-hint term-error">
+          <p class="hint" id="term-hint">Whole months, 1 to 600.</p>
+          <p class="field-error" id="term-error" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="fees-heading">
+      <h2 id="fees-heading">Fees (optional)</h2>
+      <div class="grid">
+        <div>
+          <label for="fee-flat">Upfront flat fee</label>
+          <input id="fee-flat" type="number" inputmode="decimal" step="any" min="0" value="0" aria-describedby="fee-flat-error">
+          <p class="field-error" id="fee-flat-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="fee-pct">Upfront fee (% of principal)</label>
+          <input id="fee-pct" type="number" inputmode="decimal" step="any" min="0" max="100" value="1.5" aria-describedby="fee-pct-error">
+          <p class="field-error" id="fee-pct-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="fee-monthly">Monthly fee</label>
+          <input id="fee-monthly" type="number" inputmode="decimal" step="any" min="0" value="0" aria-describedby="fee-monthly-hint fee-monthly-error">
+          <p class="hint" id="fee-monthly-hint">Added to every installment.</p>
+          <p class="field-error" id="fee-monthly-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="fee-mode">Upfront fees are</label>
+          <select id="fee-mode">
+            <option value="upfront" selected>Paid at signing</option>
+            <option value="financed">Added to the loan balance</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions"><button type="button" id="reset">Reset to defaults</button></div>
+    </section>
+
+    <section class="card results" aria-labelledby="results-heading" aria-live="polite">
+      <h2 id="results-heading">Results</h2>
+      <p class="summary-error" id="summary-error" hidden></p>
+      <dl>
+        <div class="big"><dt>Monthly payment</dt><dd id="out-payment">-</dd></div>
+        <div><dt>Total paid</dt><dd id="out-total">-</dd></div>
+        <div><dt>Total interest</dt><dd id="out-interest">-</dd></div>
+        <div><dt>Total fees</dt><dd id="out-fees">-</dd></div>
+        <div><dt>Total cost of credit (interest + fees)</dt><dd id="out-cost">-</dd></div>
+        <div class="sep"><dt>Fees impact (extra paid vs. no fees)</dt><dd id="out-impact">-</dd></div>
+        <div><dt>Effective annual cost, without fees</dt><dd id="out-apr-base">-</dd></div>
+        <div><dt>Effective annual cost, including fees</dt><dd id="out-apr">-</dd></div>
+      </dl>
+    </section>
+
+    <section class="card">
+      <details id="schedule-wrap">
+        <summary>Amortization schedule</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Month</th><th scope="col">Payment</th><th scope="col">Interest</th><th scope="col">Principal</th><th scope="col">Balance</th></tr></thead>
+            <tbody id="schedule"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <p class="note">
+      <strong>Formula.</strong> Monthly payment <code>M = P &times; r / (1 &minus; (1 + r)<sup>&minus;n</sup>)</code>,
+      where <code>P</code> is the financed balance, <code>r</code> is the annual rate &divide; 12 &divide; 100, and
+      <code>n</code> is the term in months. With a 0% rate, <code>M = P / n</code>. The monthly fee is added on top of
+      <code>M</code>. The effective annual cost is the rate <code>i</code> that makes the installments equal to the cash
+      you actually receive, annualized as <code>(1 + i)<sup>12</sup> &minus; 1</code>. Results are estimates; lenders may
+      round, compound, or charge fees differently.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var DEFAULTS = { principal: "10000", rate: "12", term: "24", "fee-flat": "0", "fee-pct": "1.5", "fee-monthly": "0", "fee-mode": "upfront" };
+      var $ = function (id) { return document.getElementById(id); };
+      var money = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var pct = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      function fmt(v) { return money.format(v); }
+
+      function setError(id, msg) {
+        var input = $(id);
+        input.setAttribute("aria-invalid", msg ? "true" : "false");
+        $(id + "-error").textContent = msg || "";
+      }
+
+      // Returns a finite number, or null after showing an inline error.
+      function readNumber(id, o) {
+        var input = $(id);
+        var raw = input.value.trim();
+        if (raw === "") {
+          if (input.validity && input.validity.badInput) { setError(id, o.label + " must be a number."); return null; }
+          if (o.optional) { setError(id, ""); return 0; }
+          setError(id, o.label + " is required."); return null;
+        }
+        var v = Number(raw);
+        if (!isFinite(v)) { setError(id, o.label + " must be a number."); return null; }
+        if (o.integer && Math.floor(v) !== v) { setError(id, o.label + " must be a whole number."); return null; }
+        if (o.positive && v <= 0) { setError(id, o.label + " must be greater than 0."); return null; }
+        if (o.min !== undefined && v < o.min) { setError(id, o.label + " cannot be less than " + o.min + "."); return null; }
+        if (o.max !== undefined && v > o.max) { setError(id, o.label + " cannot be more than " + o.max + "."); return null; }
+        setError(id, "");
+        return v;
+      }
+
+      function payment(P, r, n) {
+        if (r === 0) return P / n;
+        return P * r / (1 - Math.pow(1 + r, -n));
+      }
+
+      // Monthly rate i such that sum(pay / (1+i)^k, k=1..n) == received. Bisection; null if not solvable.
+      function effectiveMonthlyRate(received, pay, n) {
+        if (received <= 0 || pay <= 0) return null;
+        var diff = pay * n - received;
+        if (Math.abs(diff) <= received * 1e-9) return 0;
+        if (diff < 0) return null;
+        var pv = function (i) { return i === 0 ? pay * n : pay * (1 - Math.pow(1 + i, -n)) / i; };
+        var lo = 0, hi = 1;
+        while (pv(hi) > received && hi < 1e6) hi *= 2;
+        for (var k = 0; k < 200; k++) {
+          var mid = (lo + hi) / 2;
+          if (pv(mid) > received) lo = mid; else hi = mid;
+        }
+        return (lo + hi) / 2;
+      }
+
+      var outIds = ["out-payment", "out-total", "out-interest", "out-fees", "out-cost", "out-impact", "out-apr-base", "out-apr"];
+
+      function clearOutputs(message) {
+        outIds.forEach(function (id) { $(id).textContent = "-"; });
+        $("schedule").textContent = "";
+        var s = $("summary-error");
+        s.textContent = message;
+        s.hidden = false;
+      }
+
+      function renderSchedule(P, r, n, M, monthlyFee) {
+        var body = $("schedule");
+        body.textContent = "";
+        var balance = P;
+        var frag = document.createDocumentFragment();
+        for (var k = 1; k <= n; k++) {
+          var interest = balance * r;
+          var principalPart = M - interest;
+          balance = k === n ? 0 : balance - principalPart;
+          if (Math.abs(balance) < 0.005) balance = 0;
+          var tr = document.createElement("tr");
+          [String(k), fmt(M + monthlyFee), fmt(interest), fmt(principalPart), fmt(balance)].forEach(function (text) {
+            var td = document.createElement("td");
+            td.textContent = text;
+            tr.appendChild(td);
+          });
+          frag.appendChild(tr);
+        }
+        body.appendChild(frag);
+      }
+
+      function update() {
+        var P = readNumber("principal", { label: "Principal", positive: true });
+        var rate = readNumber("rate", { label: "Interest rate", min: 0, max: 100 });
+        var n = readNumber("term", { label: "Term", positive: true, integer: true, max: 600 });
+        var feeFlat = readNumber("fee-flat", { label: "Flat fee", min: 0, optional: true });
+        var feePct = readNumber("fee-pct", { label: "Fee percentage", min: 0, max: 100, optional: true });
+        var feeMonthly = readNumber("fee-monthly", { label: "Monthly fee", min: 0, optional: true });
+        var financed = $("fee-mode").value === "financed";
+
+        if ([P, rate, n, feeFlat, feePct, feeMonthly].some(function (v) { return v === null; })) {
+          clearOutputs("Fix the highlighted fields to see results.");
+          return;
+        }
+
+        var upfrontFees = feeFlat + P * feePct / 100;
+        if (!financed && upfrontFees >= P) {
+          clearOutputs("Upfront fees are equal to or larger than the principal, so you would receive nothing. Lower the fees or add them to the loan balance.");
+          return;
+        }
+
+        var r = rate / 100 / 12;
+        var balance = financed ? P + upfrontFees : P;
+        var M = payment(balance, r, n);
+        var installment = M + feeMonthly;
+        var installmentsTotal = installment * n;
+        var totalInterest = M * n - balance;
+        var monthlyFeesTotal = feeMonthly * n;
+        var totalFees = upfrontFees + monthlyFeesTotal;
+        var totalPaid = installmentsTotal + (financed ? 0 : upfrontFees);
+        var received = financed ? P : P - upfrontFees;
+
+        $("summary-error").hidden = true;
+        $("out-payment").textContent = fmt(installment);
+        $("out-total").textContent = fmt(totalPaid);
+        $("out-interest").textContent = fmt(totalInterest);
+        $("out-fees").textContent = totalFees > 0 ? fmt(totalFees) : "None";
+        $("out-cost").textContent = fmt(totalPaid - P);
+
+        var annual = function (m) { return m === null ? "n/a" : pct.format((Math.pow(1 + m, 12) - 1) * 100) + "%"; };
+        var paymentNoFees = payment(P, r, n);
+        $("out-apr-base").textContent = annual(effectiveMonthlyRate(P, paymentNoFees, n));
+        $("out-apr").textContent = annual(effectiveMonthlyRate(received, installment, n));
+        $("out-impact").textContent = totalFees > 0 ? "+" + fmt(totalPaid - paymentNoFees * n) : "No fees entered";
+
+        renderSchedule(balance, r, n, M, feeMonthly);
+      }
+
+      function reset() {
+        Object.keys(DEFAULTS).forEach(function (id) { $(id).value = DEFAULTS[id]; });
+        update();
+      }
+
+      Object.keys(DEFAULTS).forEach(function (id) {
+        $(id).addEventListener("input", update);
+        $(id).addEventListener("change", update);
+      });
+      $("reset").addEventListener("click", reset);
+      update();
+    })();
+  </script>
+</body>
+</html>
