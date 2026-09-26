@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cron Explain - Cron expressions to plain English and back</title>
   <meta name="description" content="Explain 5-field cron expressions in plain English, preview the next run times, and turn common English phrases into cron.">
+  <link rel="icon" href="data:,">
   <style>
     :root {
       color-scheme: light dark;
@@ -41,6 +42,7 @@
     .field-error:empty { display: none; }
     .examples { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; }
     .examples button { font-size: .8rem; padding: .2rem .55rem; border-radius: 999px; }
+    .examples button[data-cron] { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
     .toggle { display: inline-flex; align-items: center; gap: .45rem; font-weight: 400; font-size: .9rem; margin: .75rem 0 0; cursor: pointer; }
     .toggle input { width: 1rem; height: 1rem; margin: 0; }
     .sentence { font-size: 1.2rem; font-weight: 650; margin: 0; }
@@ -332,6 +334,11 @@
           return { text: mp + (mRepeat ? ", during every " : " past every ") + ordinal(hs) + " hour", recurring: true };
         }
 
+        var hp = hour.parts[0];
+        if (oneMinute && hour.parts.length === 1 && hp.step > 1 && hour.values.length > 1) {
+          return { text: "every " + hp.step + " hours from " + fmtTime(first(hour), first(min)) + " through " + fmtTime(last(hour), first(min)), recurring: false };
+        }
+
         if (allValues(min) && hour.values.length * min.values.length <= 8 && (allValues(hour) || hour.values.length === 1)) {
           var times = [];
           hour.values.forEach(function (h) { min.values.forEach(function (m) { times.push(fmtTime(h, m)); }); });
@@ -504,6 +511,8 @@
 
         if (parsed.reboot) {
           renderNotes($("explain-notes"), ["@reboot has no calendar schedule, so there are no next run times."]);
+          $("fields").textContent = "";
+          $("runs").textContent = "";
           $("explain-details").hidden = true;
           return;
         }

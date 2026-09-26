@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Unit Cost - API tokens vs homelab compute</title>
   <meta name="description" content="Compare the cost of one job on a token-priced API against running the same job on your own GPU hardware.">
+  <link rel="icon" href="data:,">
   <style>
     :root {
       color-scheme: light dark;
@@ -202,7 +203,7 @@
         var mm = Math.round((h - hh) * 60);
         if (mm === 60) { hh += 1; mm = 0; }
         var text = hh ? hh + " h" + (mm ? " " + mm + " min" : "") : mm + " min";
-        return text + " (" + numFmt.format(h) + " h)";
+        return Math.floor(h) === h ? text : text + " (" + numFmt.format(h) + " h)";
       }
 
       function setError(id, msg) {
