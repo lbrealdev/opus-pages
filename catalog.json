@@ -1,0 +1,39 @@
+{
+  "tools": [
+    {
+      "id": "credit-calculator",
+      "title": "Credit Calculator",
+      "summary": "Estimate the monthly payment, total interest, and fee impact of an installment loan.",
+      "tags": ["finance", "loan", "installments", "interest", "fees"],
+      "path": "tools/credit-calculator.html"
+    },
+    {
+      "id": "fx-quick",
+      "title": "FX Quick",
+      "summary": "Convert between EUR, USD, and BRL using exchange rates you set yourself.",
+      "tags": ["finance", "currency", "exchange-rate", "converter"],
+      "path": "tools/fx-quick.html"
+    },
+    {
+      "id": "unit-cost",
+      "title": "Unit Cost: API vs Homelab",
+      "summary": "Compare what one job costs on a token-priced API versus your own GPU hardware.",
+      "tags": ["ai", "llm", "tokens", "gpu", "homelab", "cost"],
+      "path": "tools/unit-cost.html"
+    },
+    {
+      "id": "cron-explain",
+      "title": "Cron Explain",
+      "summary": "Translate cron expressions into plain English and common phrases back into cron.",
+      "tags": ["devops", "cron", "scheduling", "sysadmin"],
+      "path": "tools/cron-explain.html"
+    },
+    {
+      "id": "transfer-eta",
+      "title": "Transfer ETA",
+      "summary": "Estimate how long a transfer takes from data size and effective throughput.",
+      "tags": ["network", "bandwidth", "transfer", "estimate"],
+      "path": "tools/transfer-eta.html"
+    }
+  ]
+}
