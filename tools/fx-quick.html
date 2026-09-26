@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FX Quick - Currency conversion with your own rates</title>
+  <meta name="description" content="Convert between EUR, USD, and BRL using exchange rates you enter yourself. No live data, no network calls.">
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6470; --card: #ffffff; --border: #d8dde3;
+      --accent: #2458d6; --err: #b42318; --field: #fbfcfd; --hl: #eef3ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4af; --card: #171b21; --border: #2a313a;
+        --accent: #7aa7ff; --err: #ff8f84; --field: #11151a; --hl: #1a2436;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 760px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 1.65rem; margin: .75rem 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.05rem; margin: 0 0 .75rem; }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    .grid { display: grid; gap: .9rem 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+    .pair { display: grid; gap: .75rem; grid-template-columns: 1fr auto 1fr; align-items: end; }
+    @media (max-width: 480px) { .pair { grid-template-columns: 1fr; } .pair .swap-wrap { justify-self: center; } }
+    label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    input, select { width: 100%; font: inherit; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--field); color: var(--fg); }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[aria-invalid="true"] { border-color: var(--err); }
+    .hint { color: var(--muted); font-size: .8rem; margin: .25rem 0 0; }
+    .field-error { color: var(--err); font-size: .82rem; margin: .25rem 0 0; }
+    .field-error:empty { display: none; }
+    .inline-input { display: flex; align-items: center; gap: .5rem; }
+    .inline-input span { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .big { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; font-variant-numeric: tabular-nums; word-break: break-word; }
+    .results dl { margin: 0; }
+    .results dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .3rem 0; }
+    .results dt { color: var(--muted); }
+    .results dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .summary-error { color: var(--err); margin: 0; }
+    .badge { display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .5rem; border-radius: 999px; background: var(--hl); color: var(--accent); vertical-align: middle; margin-left: .35rem; }
+    .note { color: var(--muted); font-size: .85rem; }
+    .actions { display: flex; justify-content: flex-end; margin-top: .9rem; }
+    button { font: inherit; padding: .5rem .9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">&larr; All tools</a>
+    <h1>FX Quick</h1>
+    <p class="lead">Convert between EUR, USD, and BRL with exchange rates you control. Nothing is fetched from the internet.</p>
+
+    <section class="card" aria-labelledby="rates-heading">
+      <h2 id="rates-heading">Rates <span class="badge">editable placeholders</span></h2>
+      <div class="grid">
+        <div>
+          <label for="rate-eur">EUR/BRL (BRL per 1 EUR)</label>
+          <div class="inline-input"><span>1 EUR =</span><input id="rate-eur" type="number" inputmode="decimal" step="any" min="0" value="6.20" aria-describedby="rate-eur-error"><span>BRL</span></div>
+          <p class="field-error" id="rate-eur-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="rate-usd">USD/BRL (BRL per 1 USD)</label>
+          <div class="inline-input"><span>1 USD =</span><input id="rate-usd" type="number" inputmode="decimal" step="any" min="0" value="5.50" aria-describedby="rate-usd-error"><span>BRL</span></div>
+          <p class="field-error" id="rate-usd-error" aria-live="polite"></p>
+        </div>
+      </div>
+      <p class="hint">Default values are sample numbers, not live market rates. Replace them with the rates you want to use.</p>
+    </section>
+
+    <section class="card" aria-labelledby="convert-heading">
+      <h2 id="convert-heading">Convert</h2>
+      <div>
+        <label for="amount">Amount</label>
+        <input id="amount" type="number" inputmode="decimal" step="any" min="0" value="100" aria-describedby="amount-error">
+        <p class="field-error" id="amount-error" aria-live="polite"></p>
+      </div>
+      <div class="pair" style="margin-top:.9rem">
+        <div>
+          <label for="from">From</label>
+          <select id="from">
+            <option value="EUR" selected>EUR - Euro</option>
+            <option value="USD">USD - US dollar</option>
+            <option value="BRL">BRL - Brazilian real</option>
+          </select>
+        </div>
+        <div class="swap-wrap"><button type="button" id="swap" aria-label="Swap currencies" title="Swap currencies">&#8646;</button></div>
+        <div>
+          <label for="to">To</label>
+          <select id="to">
+            <option value="EUR">EUR - Euro</option>
+            <option value="USD">USD - US dollar</option>
+            <option value="BRL" selected>BRL - Brazilian real</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions"><button type="button" id="reset">Reset to defaults</button></div>
+    </section>
+
+    <section class="card results" aria-labelledby="result-heading" aria-live="polite">
+      <h2 id="result-heading">Result</h2>
+      <p class="summary-error" id="summary-error" hidden></p>
+      <div id="result-body">
+        <p class="big" id="out-main">-</p>
+        <dl>
+          <div><dt>Rate used</dt><dd id="out-rate">-</dd></div>
+          <div><dt>Inverse rate</dt><dd id="out-inverse">-</dd></div>
+          <div><dt>How the rate was derived</dt><dd id="out-how">-</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <p class="note">
+      Rates are stored as BRL per unit of EUR and USD. Conversions between EUR and USD use the cross rate through BRL
+      (for example, EUR&rarr;USD = EUR/BRL &divide; USD/BRL). Real transfers usually include spreads and fees that are not modeled here.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var DEFAULTS = { "rate-eur": "6.20", "rate-usd": "5.50", amount: "100", from: "EUR", to: "BRL" };
+      var $ = function (id) { return document.getElementById(id); };
+      var amountFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var rateFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+
+      function setError(id, msg) {
+        $(id).setAttribute("aria-invalid", msg ? "true" : "false");
+        $(id + "-error").textContent = msg || "";
+      }
+
+      function readNumber(id, o) {
+        var input = $(id);
+        var raw = input.value.trim();
+        if (raw === "") {
+          if (input.validity && input.validity.badInput) { setError(id, o.label + " must be a number."); return null; }
+          setError(id, o.label + " is required."); return null;
+        }
+        var v = Number(raw);
+        if (!isFinite(v)) { setError(id, o.label + " must be a number."); return null; }
+        if (o.positive && v <= 0) { setError(id, o.label + " must be greater than 0."); return null; }
+        if (o.nonNegative && v < 0) { setError(id, o.label + " cannot be negative."); return null; }
+        setError(id, "");
+        return v;
+      }
+
+      // BRL value of one unit of each currency.
+      function brlPerUnit(code, rates) {
+        return code === "BRL" ? 1 : rates[code];
+      }
+
+      function update() {
+        var rates = {
+          EUR: readNumber("rate-eur", { label: "EUR/BRL rate", positive: true }),
+          USD: readNumber("rate-usd", { label: "USD/BRL rate", positive: true })
+        };
+        var amount = readNumber("amount", { label: "Amount", nonNegative: true });
+        var from = $("from").value;
+        var to = $("to").value;
+        var err = $("summary-error");
+        var body = $("result-body");
+
+        var needed = [from, to].filter(function (c) { return c !== "BRL"; });
+        var missingRate = needed.some(function (c) { return rates[c] === null; });
+        if (amount === null || missingRate) {
+          err.textContent = "Fix the highlighted fields to see the conversion.";
+          err.hidden = false;
+          body.hidden = true;
+          return;
+        }
+
+        var rate = brlPerUnit(from, rates) / brlPerUnit(to, rates);
+        var how;
+        if (from === to) how = "Same currency";
+        else if (from === "BRL" || to === "BRL") how = "Direct " + (from === "BRL" ? to : from) + "/BRL rate";
+        else how = "Cross via BRL: " + rateFmt.format(rates[from]) + " \u00f7 " + rateFmt.format(rates[to]);
+
+        err.hidden = true;
+        body.hidden = false;
+        $("out-main").textContent = amountFmt.format(amount) + " " + from + " = " + amountFmt.format(amount * rate) + " " + to;
+        $("out-rate").textContent = "1 " + from + " = " + rateFmt.format(rate) + " " + to;
+        $("out-inverse").textContent = "1 " + to + " = " + rateFmt.format(1 / rate) + " " + from;
+        $("out-how").textContent = how;
+      }
+
+      function reset() {
+        Object.keys(DEFAULTS).forEach(function (id) { $(id).value = DEFAULTS[id]; });
+        update();
+      }
+
+      Object.keys(DEFAULTS).forEach(function (id) {
+        $(id).addEventListener("input", update);
+        $(id).addEventListener("change", update);
+      });
+      $("swap").addEventListener("click", function () {
+        var f = $("from").value;
+        $("from").value = $("to").value;
+        $("to").value = f;
+        update();
+      });
+      $("reset").addEventListener("click", reset);
+      update();
+    })();
+  </script>
+</body>
+</html>

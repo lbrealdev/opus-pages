@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unit Cost - API tokens vs homelab compute</title>
+  <meta name="description" content="Compare the cost of one job on a token-priced API against running the same job on your own GPU hardware.">
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6470; --card: #ffffff; --border: #d8dde3;
+      --accent: #2458d6; --err: #b42318; --field: #fbfcfd; --hl: #eef3ff; --ok: #067647;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4af; --card: #171b21; --border: #2a313a;
+        --accent: #7aa7ff; --err: #ff8f84; --field: #11151a; --hl: #1a2436; --ok: #75e0a7;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 860px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 1.65rem; margin: .75rem 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.05rem; margin: 0 0 .75rem; }
+    h3 { font-size: .95rem; margin: 0 0 .5rem; color: var(--muted); }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; }
+    .cols { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    .cols .card { margin-bottom: 0; }
+    .stack > div + div { margin-top: .85rem; }
+    label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    input, select { width: 100%; font: inherit; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--field); color: var(--fg); }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[aria-invalid="true"] { border-color: var(--err); }
+    .hint { color: var(--muted); font-size: .8rem; margin: .25rem 0 0; }
+    .field-error { color: var(--err); font-size: .82rem; margin: .25rem 0 0; }
+    .field-error:empty { display: none; }
+    .subtotal { margin: .9rem 0 0; padding-top: .7rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .results { margin-top: 1rem; }
+    .verdict { font-size: 1.25rem; font-weight: 700; margin: 0 0 .75rem; }
+    .verdict.ok { color: var(--ok); }
+    .results dl { margin: 0; }
+    .results dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .3rem 0; }
+    .results dt { color: var(--muted); }
+    .results dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .results .sep { border-top: 1px solid var(--border); margin-top: .4rem; padding-top: .7rem; }
+    .summary-error { color: var(--err); margin: 0; }
+    .note { color: var(--muted); font-size: .85rem; }
+    .note code { font-size: .85rem; }
+    .actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
+    button { font: inherit; padding: .45rem .9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">&larr; All tools</a>
+    <h1>Unit Cost: API vs Homelab</h1>
+    <p class="lead">Price the same job two ways: pay per token on an API, or run it on your own GPU and pay for hardware time and electricity.</p>
+
+    <div class="cols">
+      <section class="card" aria-labelledby="api-heading">
+        <h2 id="api-heading">API</h2>
+        <div class="stack">
+          <div>
+            <label for="price-in">Price per 1M input tokens ($)</label>
+            <input id="price-in" type="number" inputmode="decimal" step="any" min="0" value="3" aria-describedby="price-in-error">
+            <p class="field-error" id="price-in-error" aria-live="polite"></p>
+          </div>
+          <div>
+            <label for="price-out">Price per 1M output tokens ($)</label>
+            <input id="price-out" type="number" inputmode="decimal" step="any" min="0" value="15" aria-describedby="price-out-error">
+            <p class="field-error" id="price-out-error" aria-live="polite"></p>
+          </div>
+          <div>
+            <label for="tokens-in">Job input tokens</label>
+            <input id="tokens-in" type="number" inputmode="numeric" step="any" min="0" value="2000000" aria-describedby="tokens-in-hint tokens-in-error">
+            <p class="hint" id="tokens-in-hint"></p>
+            <p class="field-error" id="tokens-in-error" aria-live="polite"></p>
+          </div>
+          <div>
+            <label for="tokens-out">Job output tokens</label>
+            <input id="tokens-out" type="number" inputmode="numeric" step="any" min="0" value="500000" aria-describedby="tokens-out-hint tokens-out-error">
+            <p class="hint" id="tokens-out-hint"></p>
+            <p class="field-error" id="tokens-out-error" aria-live="polite"></p>
+          </div>
+        </div>
+        <p class="subtotal"><span>API cost</span><span id="sub-api">-</span></p>
+      </section>
+
+      <section class="card" aria-labelledby="home-heading">
+        <h2 id="home-heading">Homelab</h2>
+        <div class="stack">
+          <div>
+            <label for="duration-mode">Job duration</label>
+            <select id="duration-mode">
+              <option value="hours" selected>Enter hours directly</option>
+              <option value="throughput">Derive from throughput (tokens/second)</option>
+            </select>
+          </div>
+          <div id="hours-wrap">
+            <label for="hours">Duration (hours)</label>
+            <input id="hours" type="number" inputmode="decimal" step="any" min="0" value="3" aria-describedby="hours-error">
+            <p class="field-error" id="hours-error" aria-live="polite"></p>
+          </div>
+          <div id="tps-wrap" hidden>
+            <label for="tps-in">Prompt processing speed (input tokens/s)</label>
+            <input id="tps-in" type="number" inputmode="decimal" step="any" min="0" value="2000" aria-describedby="tps-in-error">
+            <p class="field-error" id="tps-in-error" aria-live="polite"></p>
+            <div style="margin-top:.85rem">
+              <label for="tps-out">Generation speed (output tokens/s)</label>
+              <input id="tps-out" type="number" inputmode="decimal" step="any" min="0" value="50" aria-describedby="tps-out-hint tps-out-error">
+              <p class="hint" id="tps-out-hint"></p>
+              <p class="field-error" id="tps-out-error" aria-live="polite"></p>
+            </div>
+          </div>
+          <div>
+            <label for="gpu-hour">Hardware cost per hour ($/h)</label>
+            <input id="gpu-hour" type="number" inputmode="decimal" step="any" min="0" value="0.30" aria-describedby="gpu-hour-hint gpu-hour-error">
+            <p class="hint" id="gpu-hour-hint">Amortized purchase, rental, or other per-hour cost. Use 0 if you only want electricity.</p>
+            <p class="field-error" id="gpu-hour-error" aria-live="polite"></p>
+          </div>
+          <div>
+            <label for="watts">Average power draw (W)</label>
+            <input id="watts" type="number" inputmode="decimal" step="any" min="0" value="350" aria-describedby="watts-error">
+            <p class="field-error" id="watts-error" aria-live="polite"></p>
+          </div>
+          <div>
+            <label for="kwh">Electricity price ($/kWh)</label>
+            <input id="kwh" type="number" inputmode="decimal" step="any" min="0" value="0.15" aria-describedby="kwh-error">
+            <p class="field-error" id="kwh-error" aria-live="polite"></p>
+          </div>
+        </div>
+        <p class="subtotal"><span>Homelab cost</span><span id="sub-home">-</span></p>
+      </section>
+    </div>
+
+    <section class="card results" aria-labelledby="cmp-heading" aria-live="polite">
+      <h2 id="cmp-heading">Comparison</h2>
+      <p class="summary-error" id="summary-error" hidden></p>
+      <div id="result-body">
+        <p class="verdict" id="verdict">-</p>
+        <dl>
+          <div><dt>API cost</dt><dd id="out-api">-</dd></div>
+          <div><dt>Homelab cost</dt><dd id="out-home">-</dd></div>
+          <div><dt>Absolute difference</dt><dd id="out-diff">-</dd></div>
+          <div><dt>Ratio (more expensive &divide; cheaper)</dt><dd id="out-ratio">-</dd></div>
+          <div class="sep"><dt>Homelab duration used</dt><dd id="out-hours">-</dd></div>
+          <div><dt>Homelab hardware time</dt><dd id="out-hw">-</dd></div>
+          <div><dt>Homelab energy</dt><dd id="out-energy">-</dd></div>
+          <div><dt>API cost per 1M tokens (blended)</dt><dd id="out-api-m">-</dd></div>
+          <div><dt>Homelab cost per 1M tokens (blended)</dt><dd id="out-home-m">-</dd></div>
+        </dl>
+      </div>
+      <div class="actions"><button type="button" id="reset">Reset to defaults</button></div>
+    </section>
+
+    <p class="note">
+      <strong>How it is calculated.</strong>
+      API cost = input tokens &divide; 1,000,000 &times; input price + output tokens &divide; 1,000,000 &times; output price.
+      Homelab cost = hours &times; hardware $/h + (watts &times; hours &divide; 1000) &times; $/kWh.
+      When deriving duration, hours = (input tokens &divide; prompt speed + output tokens &divide; generation speed) &divide; 3600,
+      assuming one job runs at a time. Default values are editable examples, not quotes for any provider or device.
+      Output quality, setup time, and idle power are not included.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var DEFAULTS = {
+        "price-in": "3", "price-out": "15", "tokens-in": "2000000", "tokens-out": "500000",
+        "duration-mode": "hours", hours: "3", "tps-in": "2000", "tps-out": "50",
+        "gpu-hour": "0.30", watts: "350", kwh: "0.15"
+      };
+      var $ = function (id) { return document.getElementById(id); };
+      var intFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+      var numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+
+      function usd(v) {
+        var digits = Math.abs(v) > 0 && Math.abs(v) < 1 ? 4 : 2;
+        return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: digits });
+      }
+
+      function compact(n) {
+        if (n >= 1e9) return numFmt.format(n / 1e9) + "B tokens";
+        if (n >= 1e6) return numFmt.format(n / 1e6) + "M tokens";
+        if (n >= 1e3) return numFmt.format(n / 1e3) + "K tokens";
+        return intFmt.format(n) + " tokens";
+      }
+
+      function hoursText(h) {
+        if (h === 0) return "0 min";
+        var totalMin = h * 60;
+        if (totalMin < 1) return numFmt.format(h * 3600) + " s";
+        var hh = Math.floor(h);
+        var mm = Math.round((h - hh) * 60);
+        if (mm === 60) { hh += 1; mm = 0; }
+        var text = hh ? hh + " h" + (mm ? " " + mm + " min" : "") : mm + " min";
+        return Math.floor(h) === h ? text : text + " (" + numFmt.format(h) + " h)";
+      }
+
+      function setError(id, msg) {
+        $(id).setAttribute("aria-invalid", msg ? "true" : "false");
+        $(id + "-error").textContent = msg || "";
+      }
+
+      function readNumber(id, o) {
+        var input = $(id);
+        var raw = input.value.trim();
+        if (raw === "") {
+          if (input.validity && input.validity.badInput) { setError(id, o.label + " must be a number."); return null; }
+          setError(id, o.label + " is required."); return null;
+        }
+        var v = Number(raw);
+        if (!isFinite(v)) { setError(id, o.label + " must be a number."); return null; }
+        if (v < 0) { setError(id, o.label + " cannot be negative."); return null; }
+        if (o.positive && v === 0) { setError(id, o.label + " must be greater than 0."); return null; }
+        setError(id, "");
+        return v;
+      }
+
+      function update() {
+        var derive = $("duration-mode").value === "throughput";
+        $("hours-wrap").hidden = derive;
+        $("tps-wrap").hidden = !derive;
+
+        var priceIn = readNumber("price-in", { label: "Input price" });
+        var priceOut = readNumber("price-out", { label: "Output price" });
+        var tokIn = readNumber("tokens-in", { label: "Input tokens" });
+        var tokOut = readNumber("tokens-out", { label: "Output tokens" });
+        var gpuHour = readNumber("gpu-hour", { label: "Hardware cost" });
+        var watts = readNumber("watts", { label: "Power draw" });
+        var kwh = readNumber("kwh", { label: "Electricity price" });
+
+        $("tokens-in-hint").textContent = tokIn !== null ? "= " + compact(tokIn) : "";
+        $("tokens-out-hint").textContent = tokOut !== null ? "= " + compact(tokOut) : "";
+
+        var hours = null;
+        if (derive) {
+          setError("hours", "");
+          var tpsIn = readNumber("tps-in", { label: "Prompt processing speed", positive: true });
+          var tpsOut = readNumber("tps-out", { label: "Generation speed", positive: true });
+          if (tpsIn !== null && tpsOut !== null && tokIn !== null && tokOut !== null) {
+            hours = (tokIn / tpsIn + tokOut / tpsOut) / 3600;
+          }
+          $("tps-out-hint").textContent = hours !== null ? "Derived duration: " + hoursText(hours) : "";
+        } else {
+          setError("tps-in", "");
+          setError("tps-out", "");
+          hours = readNumber("hours", { label: "Duration" });
+        }
+
+        var apiOk = [priceIn, priceOut, tokIn, tokOut].every(function (v) { return v !== null; });
+        var homeOk = hours !== null && [gpuHour, watts, kwh].every(function (v) { return v !== null; });
+
+        var api = apiOk ? tokIn / 1e6 * priceIn + tokOut / 1e6 * priceOut : null;
+        var energyKwh = homeOk ? watts * hours / 1000 : null;
+        var hwCost = homeOk ? hours * gpuHour : null;
+        var energyCost = homeOk ? energyKwh * kwh : null;
+        var home = homeOk ? hwCost + energyCost : null;
+
+        $("sub-api").textContent = api === null ? "-" : usd(api);
+        $("sub-home").textContent = home === null ? "-" : usd(home);
+
+        if (api === null || home === null) {
+          $("summary-error").textContent = "Fix the highlighted fields to compare both sides.";
+          $("summary-error").hidden = false;
+          $("result-body").hidden = true;
+          return;
+        }
+
+        $("summary-error").hidden = true;
+        $("result-body").hidden = false;
+
+        var diff = Math.abs(api - home);
+        var verdict = $("verdict");
+        verdict.className = "verdict ok";
+        var ratioText = "n/a";
+        if (diff < 0.005) {
+          verdict.textContent = api === 0 && home === 0 ? "Both cost nothing with these inputs." : "Both options cost about the same.";
+          verdict.className = "verdict";
+          if (api > 0 && home > 0) ratioText = numFmt.format(Math.max(api, home) / Math.min(api, home)) + "\u00d7";
+        } else {
+          var cheaper = api < home ? "API" : "Homelab";
+          var pricier = api < home ? "homelab" : "API";
+          var lo = Math.min(api, home);
+          var hi = Math.max(api, home);
+          ratioText = lo > 0 ? numFmt.format(hi / lo) + "\u00d7" : "n/a (cheaper side costs $0)";
+          verdict.textContent = cheaper + " is cheaper by " + usd(diff) +
+            (lo > 0 ? "; the " + pricier + " costs " + numFmt.format(hi / lo) + "\u00d7 as much." : ".");
+        }
+
+        var totalTok = tokIn + tokOut;
+        $("out-api").textContent = usd(api);
+        $("out-home").textContent = usd(home);
+        $("out-diff").textContent = usd(diff);
+        $("out-ratio").textContent = ratioText;
+        $("out-hours").textContent = hoursText(hours);
+        $("out-hw").textContent = usd(hwCost);
+        $("out-energy").textContent = numFmt.format(energyKwh) + " kWh = " + usd(energyCost);
+        $("out-api-m").textContent = totalTok > 0 ? usd(api / totalTok * 1e6) : "n/a (no tokens)";
+        $("out-home-m").textContent = totalTok > 0 ? usd(home / totalTok * 1e6) : "n/a (no tokens)";
+      }
+
+      function reset() {
+        Object.keys(DEFAULTS).forEach(function (id) { $(id).value = DEFAULTS[id]; });
+        update();
+      }
+
+      Object.keys(DEFAULTS).forEach(function (id) {
+        $(id).addEventListener("input", update);
+        $(id).addEventListener("change", update);
+      });
+      $("reset").addEventListener("click", reset);
+      update();
+    })();
+  </script>
+</body>
+</html>
