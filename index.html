@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opus Pages - Single-file browser tools</title>
+  <meta name="description" content="A searchable gallery of small, single-file tools that run entirely in your browser.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --fg: #1b1f24;
+      --muted: #5b6470;
+      --card: #ffffff;
+      --border: #d8dde3;
+      --accent: #2458d6;
+      --chip: #eef2f8;
+      --warn-fg: #7a4b00;
+      --warn-bg: #fff6e0;
+      --warn-border: #f0d08a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216;
+        --fg: #e6e9ed;
+        --muted: #9aa4af;
+        --card: #171b21;
+        --border: #2a313a;
+        --accent: #7aa7ff;
+        --chip: #212833;
+        --warn-fg: #ffd98a;
+        --warn-bg: #2a2212;
+        --warn-border: #5c4a1f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+    header h1 { font-size: 1.9rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+    header p { margin: 0; color: var(--muted); }
+    .search { margin: 1.5rem 0 .5rem; }
+    .search label { display: block; font-weight: 600; margin-bottom: .35rem; }
+    .search input {
+      width: 100%;
+      font: inherit;
+      font-size: 1.05rem;
+      padding: .7rem .85rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--fg);
+    }
+    .search input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .meta { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: .9rem; margin-bottom: 1rem; min-height: 1.4em; }
+    kbd { font: .8rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3rem; }
+    .notice {
+      border: 1px solid var(--warn-border);
+      background: var(--warn-bg);
+      color: var(--warn-fg);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+      margin: 0 0 1rem;
+      font-size: .92rem;
+    }
+    .grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      height: 100%;
+      padding: 1rem 1.1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: inherit;
+      text-decoration: none;
+      transition: border-color .15s, transform .15s;
+    }
+    .card:hover, .card:focus-visible { border-color: var(--accent); transform: translateY(-1px); }
+    .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .card h2 { font-size: 1.1rem; margin: 0; color: var(--accent); }
+    .card p { margin: 0; color: var(--muted); font-size: .95rem; flex: 1; }
+    .tags { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+    .tags li { font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; background: var(--chip); color: var(--muted); }
+    .empty { text-align: center; padding: 2.5rem 1rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; }
+    .empty p { margin: 0 0 .75rem; }
+    button {
+      font: inherit;
+      padding: .45rem .9rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--fg);
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Opus Pages</h1>
+      <p>Small single-file tools that run entirely in your browser. No accounts, no tracking, no network calls.</p>
+    </header>
+
+    <div class="search" role="search">
+      <label for="q">Search tools</label>
+      <input id="q" type="search" placeholder="Filter by title, description, or tag (e.g. finance, cron, gpu)" autocomplete="off" spellcheck="false" aria-controls="tool-list" aria-describedby="status">
+    </div>
+    <div class="meta">
+      <span id="status" aria-live="polite">Loading catalog...</span>
+      <span class="shortcut">Press <kbd>/</kbd> to search</span>
+    </div>
+
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <ul id="tool-list" class="grid" aria-label="Tools"></ul>
+
+    <div id="empty" class="empty" hidden>
+      <p id="empty-text">No tools match your search.</p>
+      <button type="button" id="clear">Clear search</button>
+    </div>
+
+    <noscript>
+      <p class="notice">This gallery needs JavaScript to list and search tools. The tools themselves are plain HTML files in the <code>tools/</code> folder.</p>
+    </noscript>
+
+    <footer>
+      <p>Each tool is one self-contained HTML file. Everything runs locally in your browser.</p>
+    </footer>
+  </main>
+
+  <script type="application/json" id="catalog-fallback">
+{
+  "tools": [
+    {
+      "id": "credit-calculator",
+      "title": "Credit Calculator",
+      "summary": "Estimate the monthly payment, total interest, and fee impact of an installment loan.",
+      "tags": ["finance", "loan", "installments", "interest", "fees"],
+      "path": "tools/credit-calculator.html"
+    },
+    {
+      "id": "fx-quick",
+      "title": "FX Quick",
+      "summary": "Convert between EUR, USD, and BRL using exchange rates you set yourself.",
+      "tags": ["finance", "currency", "exchange-rate", "converter"],
+      "path": "tools/fx-quick.html"
+    },
+    {
+      "id": "unit-cost",
+      "title": "Unit Cost: API vs Homelab",
+      "summary": "Compare what one job costs on a token-priced API versus your own GPU hardware.",
+      "tags": ["ai", "llm", "tokens", "gpu", "homelab", "cost"],
+      "path": "tools/unit-cost.html"
+    },
+    {
+      "id": "cron-explain",
+      "title": "Cron Explain",
+      "summary": "Translate cron expressions into plain English and common phrases back into cron.",
+      "tags": ["devops", "cron", "scheduling", "sysadmin"],
+      "path": "tools/cron-explain.html"
+    },
+    {
+      "id": "transfer-eta",
+      "title": "Transfer ETA",
+      "summary": "Estimate how long a transfer takes from data size and effective throughput.",
+      "tags": ["network", "bandwidth", "transfer", "estimate"],
+      "path": "tools/transfer-eta.html"
+    }
+  ]
+}
+  </script>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var CATALOG_URL = "catalog.json";
+      var input = document.getElementById("q");
+      var list = document.getElementById("tool-list");
+      var status = document.getElementById("status");
+      var notice = document.getElementById("notice");
+      var empty = document.getElementById("empty");
+      var emptyText = document.getElementById("empty-text");
+      var clearBtn = document.getElementById("clear");
+      var tools = [];
+
+      function isSafeRelativePath(p) {
+        return typeof p === "string" && p.length > 0 && !/^([a-z][a-z0-9+.-]*:|\/|\\)/i.test(p);
+      }
+
+      function normalize(data) {
+        var raw = data && Array.isArray(data.tools) ? data.tools : null;
+        if (!raw) throw new Error('expected an object with a "tools" array');
+        return raw.filter(function (t) {
+          return t && typeof t.id === "string" && typeof t.title === "string" && isSafeRelativePath(t.path);
+        }).map(function (t) {
+          var tags = Array.isArray(t.tags) ? t.tags.filter(function (x) { return typeof x === "string"; }) : [];
+          var summary = typeof t.summary === "string" ? t.summary : "";
+          return {
+            id: t.id,
+            title: t.title,
+            summary: summary,
+            tags: tags,
+            path: t.path,
+            haystack: [t.title, summary].concat(tags).join(" ").toLowerCase()
+          };
+        });
+      }
+
+      function readFallback() {
+        var el = document.getElementById("catalog-fallback");
+        return JSON.parse(el ? el.textContent : "null");
+      }
+
+      function showNotice(text) {
+        notice.textContent = text;
+        notice.hidden = false;
+      }
+
+      function render() {
+        var query = input.value.trim().toLowerCase();
+        var terms = query ? query.split(/\s+/) : [];
+        var matches = tools.filter(function (t) {
+          return terms.every(function (term) { return t.haystack.indexOf(term) !== -1; });
+        });
+
+        list.textContent = "";
+        matches.forEach(function (t) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.className = "card";
+          a.href = t.path;
+
+          var h2 = document.createElement("h2");
+          h2.textContent = t.title;
+          a.appendChild(h2);
+
+          var p = document.createElement("p");
+          p.textContent = t.summary;
+          a.appendChild(p);
+
+          if (t.tags.length) {
+            var ul = document.createElement("ul");
+            ul.className = "tags";
+            ul.setAttribute("aria-label", "Tags");
+            t.tags.forEach(function (tag) {
+              var chip = document.createElement("li");
+              chip.textContent = tag;
+              ul.appendChild(chip);
+            });
+            a.appendChild(ul);
+          }
+
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+
+        var noun = tools.length === 1 ? "tool" : "tools";
+        if (!terms.length) {
+          status.textContent = tools.length + " " + noun;
+        } else {
+          status.textContent = matches.length + " of " + tools.length + " " + noun + " match";
+        }
+
+        var showEmpty = tools.length > 0 && matches.length === 0;
+        empty.hidden = !showEmpty;
+        if (showEmpty) emptyText.textContent = "No tools match \u201c" + input.value.trim() + "\u201d.";
+      }
+
+      function syncUrl() {
+        try {
+          var url = new URL(window.location.href);
+          var q = input.value.trim();
+          if (q) url.searchParams.set("q", q); else url.searchParams.delete("q");
+          window.history.replaceState(null, "", url.toString());
+        } catch (e) {
+          // Some browsers restrict history updates on file:// pages; search still works.
+        }
+      }
+
+      function start(data) {
+        tools = normalize(data);
+        render();
+      }
+
+      function sameCatalog(a, b) {
+        try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; }
+      }
+
+      try {
+        var initial = new URLSearchParams(window.location.search).get("q");
+        if (initial) input.value = initial;
+      } catch (e) { /* ignore malformed query strings */ }
+
+      input.addEventListener("input", function () { render(); syncUrl(); });
+      clearBtn.addEventListener("click", function () {
+        input.value = "";
+        render();
+        syncUrl();
+        input.focus();
+      });
+      document.addEventListener("keydown", function (e) {
+        var tag = (e.target && e.target.tagName) || "";
+        if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(tag) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          input.focus();
+          input.select();
+        } else if (e.key === "Escape" && e.target === input && input.value) {
+          input.value = "";
+          render();
+          syncUrl();
+        }
+      });
+
+      function useFallback(reason) {
+        try {
+          start(readFallback());
+          var hint = window.location.protocol === "file:"
+            ? " Browsers often block loading files when a page is opened from disk; serve the folder with any static server to load it directly."
+            : "";
+          showNotice("Could not load catalog.json (" + reason + "). Showing the built-in copy of the catalog instead." + hint);
+        } catch (e) {
+          tools = [];
+          render();
+          status.textContent = "No tools loaded";
+          showNotice("Could not load the tool catalog (" + reason + "). Try reloading the page, or open the files in the tools/ folder directly.");
+        }
+      }
+
+      if (typeof window.fetch !== "function") {
+        useFallback("this browser does not support fetch");
+        return;
+      }
+
+      window.fetch(CATALOG_URL, { cache: "no-cache" })
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          start(data);
+          try {
+            if (!sameCatalog(data, readFallback())) {
+              console.warn("index.html: the embedded catalog fallback differs from catalog.json. Update the #catalog-fallback block.");
+            }
+          } catch (e) {
+            console.warn("index.html: the embedded catalog fallback is not valid JSON.");
+          }
+        })
+        .catch(function (err) {
+          useFallback(err && err.message ? err.message : "unknown error");
+        });
+    })();
+  </script>
+</body>
+</html>
