@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transfer ETA - Estimate transfer time from size and speed</title>
+  <meta name="description" content="Estimate how long a transfer takes from data size and effective throughput in Mbps, with transparent assumptions.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6470; --card: #ffffff; --border: #d8dde3;
+      --accent: #2458d6; --err: #b42318; --field: #fbfcfd; --hl: #eef3ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1216; --fg: #e6e9ed; --muted: #9aa4af; --card: #171b21; --border: #2a313a;
+        --accent: #7aa7ff; --err: #ff8f84; --field: #11151a; --hl: #1a2436;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    main { max-width: 760px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    a { color: var(--accent); }
+    .back { font-size: .9rem; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 1.65rem; margin: .75rem 0 .25rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.05rem; margin: 0 0 .75rem; }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+    .grid { display: grid; gap: .9rem 1rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+    .size-row { display: grid; grid-template-columns: 1fr 6.5rem; gap: .5rem; }
+    label { display: block; font-weight: 600; font-size: .9rem; margin-bottom: .3rem; }
+    input, select { width: 100%; font: inherit; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--field); color: var(--fg); }
+    input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input[aria-invalid="true"] { border-color: var(--err); }
+    .hint { color: var(--muted); font-size: .8rem; margin: .25rem 0 0; }
+    .field-error { color: var(--err); font-size: .82rem; margin: .25rem 0 0; }
+    .field-error:empty { display: none; }
+    .eta { font-size: 2rem; font-weight: 750; margin: 0; font-variant-numeric: tabular-nums; }
+    .eta-sub { color: var(--muted); margin: .1rem 0 .8rem; }
+    .results dl { margin: 0; }
+    .results dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .3rem 0; }
+    .results dt { color: var(--muted); }
+    .results dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .latency { margin: .8rem 0 0; padding: .7rem .85rem; border-radius: 8px; background: var(--hl); font-size: .9rem; }
+    .latency p { margin: 0; }
+    .latency p + p { margin-top: .35rem; }
+    .summary-error { color: var(--err); margin: 0; }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--border); }
+    td:last-child, th:last-child { text-align: right; }
+    tr.current td { font-weight: 700; }
+    .note { color: var(--muted); font-size: .85rem; }
+    .actions { display: flex; justify-content: flex-end; margin-top: .9rem; }
+    button { font: inherit; padding: .45rem .9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="../index.html">&larr; All tools</a>
+    <h1>Transfer ETA</h1>
+    <p class="lead">Estimate how long moving a file or dataset takes at a given effective speed. This is arithmetic, not a speed test.</p>
+
+    <section class="card" aria-labelledby="input-heading">
+      <h2 id="input-heading">Transfer</h2>
+      <div class="grid">
+        <div>
+          <label for="size">Data size</label>
+          <div class="size-row">
+            <input id="size" type="number" inputmode="decimal" step="any" min="0" value="4.7" aria-describedby="size-error">
+            <select id="unit" aria-label="Size unit">
+              <option value="0">B</option>
+              <option value="1">KB</option>
+              <option value="2">MB</option>
+              <option value="3" selected>GB</option>
+              <option value="4">TB</option>
+            </select>
+          </div>
+          <p class="field-error" id="size-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="base">Size units mean</label>
+          <select id="base" aria-describedby="base-hint">
+            <option value="1000" selected>Decimal (1 KB = 1,000 B)</option>
+            <option value="1024">Binary (1 KB = 1,024 B)</option>
+          </select>
+          <p class="hint" id="base-hint">Storage vendors use decimal; some operating systems report binary.</p>
+        </div>
+        <div>
+          <label for="speed">Effective throughput (Mbps)</label>
+          <input id="speed" type="number" inputmode="decimal" step="any" min="0" value="100" aria-describedby="speed-hint speed-error">
+          <p class="hint" id="speed-hint">Megabits per second you actually get, not the advertised plan speed.</p>
+          <p class="field-error" id="speed-error" aria-live="polite"></p>
+        </div>
+        <div>
+          <label for="rtt">Round-trip time, RTT (ms) &ndash; optional</label>
+          <input id="rtt" type="number" inputmode="decimal" step="any" min="0" value="20" aria-describedby="rtt-hint rtt-error">
+          <p class="hint" id="rtt-hint">Leave empty to skip the latency note.</p>
+          <p class="field-error" id="rtt-error" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="actions"><button type="button" id="reset">Reset to defaults</button></div>
+    </section>
+
+    <section class="card results" aria-labelledby="result-heading" aria-live="polite">
+      <h2 id="result-heading">Estimate</h2>
+      <p class="summary-error" id="summary-error" hidden></p>
+      <div id="result-body">
+        <p class="eta" id="out-eta">-</p>
+        <p class="eta-sub" id="out-eta-sub">-</p>
+        <dl>
+          <div><dt>Data size in bytes</dt><dd id="out-bytes">-</dd></div>
+          <div><dt>Data size in bits</dt><dd id="out-bits">-</dd></div>
+          <div><dt>Throughput</dt><dd id="out-rate">-</dd></div>
+        </dl>
+        <div class="latency" id="latency" hidden>
+          <p id="out-setup"></p>
+          <p id="out-bdp"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="table-card" aria-labelledby="table-heading">
+      <h2 id="table-heading">Same data at other speeds</h2>
+      <table>
+        <thead><tr><th scope="col">Throughput</th><th scope="col">Estimated time</th></tr></thead>
+        <tbody id="table"></tbody>
+      </table>
+    </section>
+
+    <p class="note">
+      <strong>Assumptions.</strong> Time = size in bits &divide; (Mbps &times; 1,000,000). Size in bits = size &times; unit multiplier &times; 8,
+      where the multiplier is 1000<sup>n</sup> (decimal) or 1024<sup>n</sup> (binary). Throughput is treated as a constant
+      effective rate: protocol overhead, slow start, congestion, retransmits, disk speed, and per-file overhead for many small
+      files are not modeled. The optional RTT note adds a rough connection-setup cost and shows the bandwidth-delay product;
+      it does not simulate TCP.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var DEFAULTS = { size: "4.7", unit: "3", base: "1000", speed: "100", rtt: "20" };
+      var UNITS = ["B", "KB", "MB", "GB", "TB"];
+      var BINARY_UNITS = ["B", "KiB", "MiB", "GiB", "TiB"];
+      var REFERENCE_SPEEDS = [10, 50, 100, 250, 500, 1000, 2500, 10000];
+      var SETUP_RTTS = 3;
+      var $ = function (id) { return document.getElementById(id); };
+      var intFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+      var numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+
+      function setError(id, msg) {
+        $(id).setAttribute("aria-invalid", msg ? "true" : "false");
+        $(id + "-error").textContent = msg || "";
+      }
+
+      function readNumber(id, o) {
+        var input = $(id);
+        var raw = input.value.trim();
+        if (raw === "") {
+          if (input.validity && input.validity.badInput) { setError(id, o.label + " must be a number."); return null; }
+          if (o.optional) { setError(id, ""); return undefined; }
+          setError(id, o.label + " is required."); return null;
+        }
+        var v = Number(raw);
+        if (!isFinite(v)) { setError(id, o.label + " must be a number."); return null; }
+        if (v < 0) { setError(id, o.label + " cannot be negative."); return null; }
+        if (o.positive && v === 0) { setError(id, o.label + " must be greater than 0."); return null; }
+        setError(id, "");
+        return v;
+      }
+
+      function human(sec) {
+        if (sec < 0.001) return "under 1 ms";
+        if (sec < 1) return intFmt.format(sec * 1000) + " ms";
+        if (sec < 10) return numFmt.format(Math.round(sec * 10) / 10) + " s";
+        if (sec < 60) return Math.round(sec) + " s";
+        if (sec < 3600) {
+          var ts = Math.round(sec);
+          if (ts >= 3600) return "1 h";
+          return Math.floor(ts / 60) + " min" + (ts % 60 ? " " + (ts % 60) + " s" : "");
+        }
+        if (sec < 86400) {
+          var tm = Math.round(sec / 60);
+          if (tm >= 1440) return "1 d";
+          return Math.floor(tm / 60) + " h" + (tm % 60 ? " " + (tm % 60) + " min" : "");
+        }
+        var th = Math.round(sec / 3600);
+        var text = intFmt.format(Math.floor(th / 24)) + " d" + (th % 24 ? " " + (th % 24) + " h" : "");
+        if (sec >= 365.25 * 86400) text += " (\u2248 " + numFmt.format(sec / (365.25 * 86400)) + " years)";
+        return text;
+      }
+
+      function exactSeconds(sec) {
+        if (sec < 60) return numFmt.format(sec) + " seconds";
+        if (sec < 3600) return numFmt.format(sec) + " seconds (" + numFmt.format(sec / 60) + " minutes)";
+        return intFmt.format(sec) + " seconds (" + numFmt.format(sec / 3600) + " hours)";
+      }
+
+      function bytesText(bytes) {
+        var units = ["B", "KB", "MB", "GB", "TB"];
+        var i = 0;
+        var v = bytes;
+        while (v >= 1000 && i < units.length - 1) { v /= 1000; i++; }
+        return numFmt.format(v) + " " + units[i];
+      }
+
+      function speedText(mbps) {
+        return mbps >= 1000 ? numFmt.format(mbps / 1000) + " Gbps" : numFmt.format(mbps) + " Mbps";
+      }
+
+      function update() {
+        var size = readNumber("size", { label: "Data size", positive: true });
+        var speed = readNumber("speed", { label: "Throughput", positive: true });
+        var rtt = readNumber("rtt", { label: "RTT", optional: true });
+        var exp = Number($("unit").value);
+        var base = Number($("base").value);
+        var unitNames = base === 1024 ? BINARY_UNITS : UNITS;
+        Array.prototype.forEach.call($("unit").options, function (opt, i) { opt.textContent = unitNames[i]; });
+
+        var err = $("summary-error");
+        if (size === null || speed === null || rtt === null) {
+          err.textContent = "Fix the highlighted fields to see the estimate.";
+          err.hidden = false;
+          $("result-body").hidden = true;
+          $("table-card").hidden = true;
+          return;
+        }
+
+        var bytes = size * Math.pow(base, exp);
+        var bits = bytes * 8;
+        var seconds = bits / (speed * 1e6);
+        if (!isFinite(seconds)) {
+          err.textContent = "These values are too large to estimate. Try a smaller size or a higher speed.";
+          err.hidden = false;
+          $("result-body").hidden = true;
+          $("table-card").hidden = true;
+          return;
+        }
+
+        err.hidden = true;
+        $("result-body").hidden = false;
+        $("table-card").hidden = false;
+        $("out-eta").textContent = human(seconds);
+        $("out-eta-sub").textContent = "Exactly " + exactSeconds(seconds) + " at a constant " + speedText(speed) + ".";
+        $("out-bytes").textContent = intFmt.format(bytes) + " B" + (base === 1024 && exp > 0 ? " (" + bytesText(bytes) + " decimal)" : "");
+        $("out-bits").textContent = intFmt.format(bits) + " bits";
+        $("out-rate").textContent = numFmt.format(speed) + " Mbps = " + numFmt.format(speed / 8) + " MB/s";
+
+        var latency = $("latency");
+        if (rtt === undefined || rtt === 0) {
+          latency.hidden = true;
+        } else {
+          var setup = SETUP_RTTS * rtt / 1000;
+          var share = setup / (seconds + setup) * 100;
+          $("out-setup").textContent = "Connection setup (about " + SETUP_RTTS + " round trips for TCP and TLS handshakes) adds roughly " +
+            human(setup) + ", for a total of about " + human(seconds + setup) + " (" +
+            (share < 1 ? "under 1%" : numFmt.format(share) + "%") + " of the total).";
+          var bdpBytes = speed * 1e6 * (rtt / 1000) / 8;
+          $("out-bdp").textContent = "Bandwidth-delay product: " + bytesText(bdpBytes) + ". A single TCP connection needs at least this much data in flight " +
+            "(window size) to sustain " + speedText(speed) + " over a " + numFmt.format(rtt) + " ms round trip; smaller windows cap the speed.";
+          latency.hidden = false;
+        }
+
+        var tbody = $("table");
+        tbody.textContent = "";
+        var speeds = REFERENCE_SPEEDS.indexOf(speed) === -1 ? REFERENCE_SPEEDS.concat([speed]).sort(function (a, b) { return a - b; }) : REFERENCE_SPEEDS;
+        speeds.forEach(function (s) {
+          var tr = document.createElement("tr");
+          if (s === speed) tr.className = "current";
+          var td1 = document.createElement("td");
+          td1.textContent = speedText(s) + (s === speed ? " (yours)" : "");
+          var td2 = document.createElement("td");
+          td2.textContent = human(bits / (s * 1e6));
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tbody.appendChild(tr);
+        });
+      }
+
+      function reset() {
+        Object.keys(DEFAULTS).forEach(function (id) { $(id).value = DEFAULTS[id]; });
+        update();
+      }
+
+      Object.keys(DEFAULTS).forEach(function (id) {
+        $(id).addEventListener("input", update);
+        $(id).addEventListener("change", update);
+      });
+      $("reset").addEventListener("click", reset);
+      update();
+    })();
+  </script>
+</body>
+</html>
